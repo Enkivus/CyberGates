@@ -30,9 +30,22 @@ pub struct SettingEntry {
 }
 
 #[tauri::command]
-pub fn get_dashboard(state: State<'_, AppState>) -> AppResult<Dashboard> {
-    let adapter = platform::adapter();
-    services::audit::build_dashboard(&state.db, adapter.as_ref())
+pub async fn get_dashboard(state: State<'_, AppState>) -> AppResult<Dashboard> {
+    let db = state.db.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let adapter = platform::adapter();
+        services::audit::build_dashboard(&db, adapter.as_ref())
+    })
+    .await
+    .map_err(|err| AppError::Task(err.to_string()))?
+}
+
+struct AuditRunGuard(std::sync::Arc<std::sync::atomic::AtomicBool>);
+
+impl Drop for AuditRunGuard {
+    fn drop(&mut self) {
+        self.0.store(false, std::sync::atomic::Ordering::SeqCst);
+    }
 }
 
 #[tauri::command]
@@ -49,27 +62,26 @@ pub async fn run_audit(state: State<'_, AppState>) -> AppResult<Dashboard> {
         ));
     }
 
-    let state = state.inner().clone();
-    let result = tauri::async_runtime::spawn_blocking(move || {
+    let guard = AuditRunGuard(state.audit_running.clone());
+    let db = state.db.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let _guard = guard;
         let adapter = platform::adapter();
-        let result = services::audit::execute(&state.db, adapter.as_ref());
-        state.audit_running.store(false, Ordering::SeqCst);
-        result
+        services::audit::execute(&db, adapter.as_ref())
     })
     .await
-    .map_err(|err| AppError::Task(err.to_string()));
-
-    match result {
-        Ok(value) => value,
-        Err(err) => Err(err),
-    }
+    .map_err(|err| AppError::Task(err.to_string()))?
 }
 
 #[tauri::command]
-pub fn get_system_info(state: State<'_, AppState>) -> AppResult<SystemInfo> {
+pub async fn get_system_info(state: State<'_, AppState>) -> AppResult<SystemInfo> {
     let _ = state;
-    let adapter = platform::adapter();
-    Ok(services::system::collect(adapter.as_ref()))
+    tauri::async_runtime::spawn_blocking(|| {
+        let adapter = platform::adapter();
+        services::system::collect(adapter.as_ref())
+    })
+    .await
+    .map_err(|err| AppError::Task(err.to_string()))
 }
 
 #[tauri::command]
