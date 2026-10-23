@@ -1,0 +1,61 @@
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+*.swp
+*~
+
+# Local AI / project context (intentionally untracked)
+instructions.md
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+secrets/
+
+# Node / frontend
+node_modules/
+dist/
+dist-ssr/
+.vite/
+*.local
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Rust / Tauri
+target/
+src-tauri/target/
+src-tauri/gen/
+src-tauri/.cargo/
+**/*.rs.bk
+
+# Local data, logs, artifacts
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+*.sqlite3-journal
+logs/
+*.log
+coverage/
+test-results/
+playwright-report/
+
+# Build/package output
+release/
+artifacts/
+*.dmg
+*.msi
+*.msix
+*.AppImage
+*.deb
+*.rpm
