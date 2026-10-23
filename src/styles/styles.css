@@ -1,0 +1,308 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  color-scheme: light;
+  --canvas: #eef3fa;
+  --surface: #ffffff;
+  --surface-2: #f3f7fc;
+  --surface-3: #e8eef7;
+  --line: #d6e0ee;
+  --line-strong: #bccbdd;
+  --ink: #0d1729;
+  --muted: #5a6b85;
+  --faint: #8494ab;
+  --accent: #0e7490;
+  --accent-strong: #155e75;
+  --accent-soft: rgba(14, 116, 144, 0.11);
+  --accent-ink: #ffffff;
+  --ok: #047857;
+  --ok-soft: rgba(4, 120, 87, 0.1);
+  --warn: #b45309;
+  --warn-soft: rgba(180, 83, 9, 0.11);
+  --danger: #dc2626;
+  --danger-soft: rgba(220, 38, 38, 0.1);
+  --info: #2563eb;
+  --info-soft: rgba(37, 99, 235, 0.1);
+  --modal: rgba(15, 23, 42, 0.42);
+  --shadow: 0 18px 45px -25px rgba(15, 23, 42, 0.35);
+}
+
+.dark {
+  color-scheme: dark;
+  --canvas: #060a12;
+  --surface: #0b1220;
+  --surface-2: #0f1728;
+  --surface-3: #141f35;
+  --line: #1c2a44;
+  --line-strong: #2a3d5f;
+  --ink: #e8eefb;
+  --muted: #8ea0be;
+  --faint: #61718d;
+  --accent: #22d3ee;
+  --accent-strong: #67e8f9;
+  --accent-soft: rgba(34, 211, 238, 0.11);
+  --accent-ink: #041820;
+  --ok: #34d399;
+  --ok-soft: rgba(52, 211, 153, 0.1);
+  --warn: #fbbf24;
+  --warn-soft: rgba(251, 191, 36, 0.11);
+  --danger: #fb7185;
+  --danger-soft: rgba(251, 113, 133, 0.11);
+  --info: #60a5fa;
+  --info-soft: rgba(96, 165, 250, 0.1);
+  --modal: rgba(2, 6, 15, 0.72);
+  --shadow: 0 25px 60px -30px rgba(0, 0, 0, 0.9);
+}
+
+@theme inline {
+  --color-canvas: var(--canvas);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-faint: var(--faint);
+  --color-accent: var(--accent);
+  --color-accent-strong: var(--accent-strong);
+  --color-accent-soft: var(--accent-soft);
+  --color-ok: var(--ok);
+  --color-ok-soft: var(--ok-soft);
+  --color-warn: var(--warn);
+  --color-warn-soft: var(--warn-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-info: var(--info);
+  --color-info-soft: var(--info-soft);
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI",
+    Roboto, Helvetica, Arial, sans-serif;
+  --font-mono: "SF Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+    monospace;
+}
+
+* {
+  border-color: var(--line);
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--canvas);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+}
+
+::selection {
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--line-strong);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+
+@layer components {
+  .panel {
+    @apply rounded-2xl border border-line bg-surface;
+    box-shadow: var(--shadow);
+  }
+
+  .panel-flat {
+    @apply rounded-xl border border-line bg-surface;
+  }
+
+  .panel-header {
+    @apply flex flex-wrap items-center justify-between gap-3 border-b border-line px-5 py-4;
+  }
+
+  .btn {
+    @apply inline-flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-line bg-surface-2 px-3 py-2 text-sm font-medium text-ink transition-colors hover:bg-surface-3 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  .btn-primary {
+    @apply border-transparent bg-accent hover:bg-accent-strong;
+    color: var(--accent-ink);
+  }
+
+  .btn-ghost {
+    @apply border-transparent bg-transparent hover:bg-surface-2;
+  }
+
+  .btn-danger {
+    @apply border-transparent bg-danger text-white hover:opacity-90;
+  }
+
+  .btn-sm {
+    @apply px-2.5 py-1.5 text-xs;
+  }
+
+  .nav-item {
+    @apply flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-[13px] font-medium text-muted transition-colors hover:bg-surface-2 hover:text-ink;
+  }
+
+  .nav-item-active {
+    background: var(--accent-soft);
+    color: var(--accent-strong);
+  }
+
+  .chip {
+    @apply inline-flex items-center gap-1 rounded-full border border-line bg-surface-2 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-muted;
+  }
+
+  .input {
+    @apply w-full rounded-lg border border-line bg-surface-2 px-3 py-2 text-sm text-ink outline-none transition-colors placeholder:text-faint focus:border-accent;
+  }
+
+  .select {
+    @apply w-full cursor-pointer appearance-none rounded-lg border border-line bg-surface-2 px-3 py-2 pr-8 text-sm text-ink outline-none transition-colors focus:border-accent;
+  }
+
+  .table {
+    @apply w-full border-collapse text-left text-[13px];
+  }
+
+  .table th {
+    @apply border-b border-line px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-faint;
+  }
+
+  .table td {
+    @apply border-b border-line/70 px-4 py-3 align-top text-ink;
+  }
+
+  .table tbody tr:hover {
+    background: var(--surface-2);
+  }
+
+  .mono {
+    font-family: var(--font-mono);
+    font-size: 0.82em;
+  }
+
+  .sev-critical {
+    color: var(--danger);
+    background: var(--danger-soft);
+    border-color: color-mix(in srgb, var(--danger) 35%, transparent);
+  }
+
+  .sev-high {
+    color: var(--warn);
+    background: var(--warn-soft);
+    border-color: color-mix(in srgb, var(--warn) 35%, transparent);
+  }
+
+  .sev-medium {
+    color: var(--info);
+    background: var(--info-soft);
+    border-color: color-mix(in srgb, var(--info) 35%, transparent);
+  }
+
+  .sev-low {
+    color: var(--accent);
+    background: var(--accent-soft);
+    border-color: color-mix(in srgb, var(--accent) 35%, transparent);
+  }
+
+  .sev-info {
+    color: var(--muted);
+    background: var(--surface-2);
+  }
+
+  .status-pass {
+    color: var(--ok);
+    background: var(--ok-soft);
+  }
+
+  .status-warning {
+    color: var(--warn);
+    background: var(--warn-soft);
+  }
+
+  .status-fail {
+    color: var(--danger);
+    background: var(--danger-soft);
+  }
+
+  .status-unavailable,
+  .status-not_applicable {
+    color: var(--muted);
+    background: var(--surface-2);
+  }
+
+  .skeleton {
+    @apply animate-pulse rounded-md bg-surface-3;
+  }
+
+  .fade-in {
+    animation: fade-in 0.25s ease-out both;
+  }
+
+  .scan-indeterminate {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .scan-indeterminate::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    width: 40%;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      color-mix(in srgb, var(--accent) 55%, transparent),
+      transparent
+    );
+    animation: scan 1.15s ease-in-out infinite;
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes scan {
+  0% {
+    transform: translateX(-120%);
+  }
+  100% {
+    transform: translateX(320%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

@@ -1,4 +1,4 @@
-use std::path::{Component, Path, PathBuf};
+use std::path::{Component, PathBuf};
 
 use crate::error::{AppError, AppResult};
 
@@ -52,6 +52,7 @@ pub fn report_format(format: &str) -> AppResult<&str> {
 
 /// Ensure a path is absolute, contains no traversal components, and does not
 /// resolve through a symlink. Used before any future file operation.
+#[allow(dead_code)]
 pub fn safe_absolute_path(path: &str) -> AppResult<PathBuf> {
     let value = bounded_text(path, "path", 4096)?;
     let path = PathBuf::from(value);
@@ -85,6 +86,7 @@ pub fn html_escape(value: &str) -> String {
         .replace('\'', "&#39;")
 }
 
+#[allow(dead_code)]
 pub fn sanitize_for_log(value: &str) -> String {
     value
         .chars()
@@ -93,6 +95,7 @@ pub fn sanitize_for_log(value: &str) -> String {
         .collect()
 }
 
+#[allow(dead_code)]
 pub fn validate_url(value: &str) -> AppResult<()> {
     let value = bounded_text(value, "url", 2048)?;
     if !(value.starts_with("https://") || value.starts_with("http://")) {

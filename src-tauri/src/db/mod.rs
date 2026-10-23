@@ -261,13 +261,6 @@ impl Db {
         rows.collect::<Result<Vec<_>, _>>().map_err(AppError::from)
     }
 
-    pub fn latest_findings(&self) -> AppResult<Vec<Finding>> {
-        let Some(audit) = self.latest_audit()? else {
-            return Ok(Vec::new());
-        };
-        self.findings_for_audit(&audit.id)
-    }
-
     pub fn list_open_findings(&self, limit: u32) -> AppResult<Vec<Finding>> {
         let conn = self.lock()?;
         let mut stmt = conn.prepare(

@@ -1,4 +1,4 @@
-use chrono::{DateTime, Utc};
+use chrono::Utc;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -61,16 +61,6 @@ impl CheckStatus {
             Self::Fail => "fail",
             Self::Unavailable => "unavailable",
             Self::NotApplicable => "not_applicable",
-        }
-    }
-
-    pub fn parse(value: &str) -> Self {
-        match value {
-            "pass" => Self::Pass,
-            "warning" => Self::Warning,
-            "fail" => Self::Fail,
-            "unavailable" => Self::Unavailable,
-            _ => Self::NotApplicable,
         }
     }
 
@@ -250,8 +240,6 @@ impl Finding {
 pub fn now_rfc3339() -> String {
     Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true)
 }
-
-pub type Timestamp = DateTime<Utc>;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]

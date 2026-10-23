@@ -520,10 +520,8 @@ mod tests {
     fn parses_lsof_lines() {
         let output = CommandOutput {
             success: true,
-            code: Some(0),
             stdout: "COMMAND PID USER FD TYPE DEVICE SIZE/OFF NODE NAME\nsafari 42 me 9u IPv4 0x1 0t0 TCP 192.168.1.2:5555->1.1.1.1:443 (ESTABLISHED)\nrapportd 7 me 14u IPv6 0x2 0t0 TCP *:49404 (LISTEN)\n".to_string(),
             stderr: String::new(),
-            timed_out: false,
         };
         let connections = parse_lsof(&output);
         assert_eq!(connections.len(), 2);

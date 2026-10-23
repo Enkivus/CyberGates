@@ -11,10 +11,8 @@ const MAX_CAPTURE_BYTES: u64 = 512 * 1024;
 #[derive(Debug, Clone)]
 pub struct CommandOutput {
     pub success: bool,
-    pub code: Option<i32>,
     pub stdout: String,
     pub stderr: String,
-    pub timed_out: bool,
 }
 
 impl CommandOutput {
@@ -24,10 +22,6 @@ impl CommandOutput {
             out = self.stderr.trim().to_string();
         }
         out
-    }
-
-    pub fn first_line(&self) -> String {
-        self.combined().lines().next().unwrap_or_default().trim().to_string()
     }
 }
 
@@ -65,10 +59,8 @@ pub fn run(program: &str, args: &[&str], timeout: Duration) -> AppResult<Command
 
     Ok(CommandOutput {
         success: status.map(|s| s.success()).unwrap_or(false),
-        code: status.and_then(|s| s.code()),
         stdout,
         stderr,
-        timed_out: status.is_none(),
     })
 }
 

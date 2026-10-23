@@ -1,8 +1,6 @@
 use uuid::Uuid;
 
-use crate::models::{
-    now_rfc3339, CheckResult, CheckStatus, Finding, ScoreBreakdown, ScoreFactor, Severity,
-};
+use crate::models::{CheckResult, CheckStatus, Finding, ScoreBreakdown, ScoreFactor};
 
 /// Deterministic, documented score:
 /// - Each check carries an explicit weight and severity.
@@ -112,14 +110,6 @@ pub fn finding_is_open(finding: &Finding) -> bool {
     finding.resolved_at.is_none() && finding.status == "open"
 }
 
-pub fn severity_rank(label: &str) -> u8 {
-    Severity::parse(label).rank()
-}
-
-pub fn now() -> String {
-    now_rfc3339()
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -130,14 +120,14 @@ mod tests {
             title: id.to_string(),
             category: "test".to_string(),
             status,
-            severity: Severity::High,
+            severity: crate::models::Severity::High,
             weight,
             evidence: "evidence".to_string(),
             explanation: "explanation".to_string(),
             remediation: "remediation".to_string(),
             verification: "verification".to_string(),
             source: "test".to_string(),
-            checked_at: now(),
+            checked_at: crate::models::now_rfc3339(),
         }
     }
 
