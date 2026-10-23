@@ -3,8 +3,8 @@ use tauri::State;
 
 use crate::error::{AppError, AppResult};
 use crate::models::{
-    AuditLogEntry, AuditRecord, Dashboard, Finding, FirewallSnapshot, InstalledApp, ModuleStatus,
-    NetworkConnection, ProcessInfo, SystemInfo,
+    AdvisoryReport, AdvisoryUpdate, AuditLogEntry, AuditRecord, Dashboard, Finding,
+    FirewallSnapshot, InstalledApp, ModuleStatus, NetworkConnection, ProcessInfo, SystemInfo,
 };
 use crate::platform;
 use crate::security::validate;
@@ -122,6 +122,66 @@ pub async fn get_firewall_snapshot(
     tauri::async_runtime::spawn_blocking(|| {
         let adapter = platform::adapter();
         adapter.firewall_snapshot()
+    })
+    .await
+    .map_err(|err| AppError::Task(err.to_string()))?
+}
+
+struct AdvisoryUpdateGuard(std::sync::Arc<std::sync::atomic::AtomicBool>);
+
+impl Drop for AdvisoryUpdateGuard {
+    fn drop(&mut self) {
+        self.0.store(false, std::sync::atomic::Ordering::SeqCst);
+    }
+}
+
+#[tauri::command]
+pub async fn update_advisory_database(state: State<'_, AppState>) -> AppResult<AdvisoryUpdate> {
+    use std::sync::atomic::Ordering;
+
+    if state
+        .advisory_update_running
+        .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
+        .is_err()
+    {
+        return Err(AppError::Validation(
+            "an advisory database update is already running".to_string(),
+        ));
+    }
+
+    let guard = AdvisoryUpdateGuard(state.advisory_update_running.clone());
+    let db = state.db.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let _guard = guard;
+        let result = services::advisories::update(&db);
+        match &result {
+            Ok(update) => {
+                let _ = db.log_action(
+                    "advisory_update",
+                    &format!(
+                        "{} records, {} packages, {} bytes",
+                        update.record_count, update.package_count, update.bytes
+                    ),
+                    "success",
+                );
+            }
+            Err(err) => {
+                let _ = db.log_action("advisory_update", &err.to_string(), "failed");
+            }
+        }
+        result
+    })
+    .await
+    .map_err(|err| AppError::Task(err.to_string()))?
+}
+
+#[tauri::command]
+pub async fn get_advisory_report(state: State<'_, AppState>) -> AppResult<AdvisoryReport> {
+    let db = state.db.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let adapter = platform::adapter();
+        let apps = adapter.installed_apps()?;
+        services::advisories::report(&db, &apps)
     })
     .await
     .map_err(|err| AppError::Task(err.to_string()))?

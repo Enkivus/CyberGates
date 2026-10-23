@@ -63,6 +63,8 @@ pub fn run() {
             commands::get_network_connections,
             commands::get_installed_apps,
             commands::get_firewall_snapshot,
+            commands::update_advisory_database,
+            commands::get_advisory_report,
             commands::get_module_statuses,
             commands::get_open_findings,
             commands::get_audit_history,

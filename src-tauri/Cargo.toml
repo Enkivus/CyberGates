@@ -31,6 +31,10 @@ which = "8"
 sha2 = "0.11"
 hex = "0.4"
 wait-timeout = "0.2"
+reqwest = { version = "0.12", default-features = false, features = ["blocking", "rustls-tls"] }
+flate2 = "1"
+tar = "0.4"
+version-compare = "0.2"
 
 [profile.release]
 codegen-units = 1

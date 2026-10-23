@@ -1,12 +1,13 @@
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, MutexGuard};
 
 use chrono::{Duration, Utc};
-use rusqlite::{params, Connection, OptionalExtension, Row};
+use rusqlite::{params, params_from_iter, Connection, OptionalExtension, Row};
 use rusqlite_migration::{Migrations, M};
 
 use crate::error::{AppError, AppResult};
-use crate::models::{now_rfc3339, AuditRecord, Finding, Severity};
+use crate::models::{now_rfc3339, AdvisoryRow, AuditRecord, Finding, Severity};
 
 const MIGRATION_SQL: &str = r#"
 CREATE TABLE IF NOT EXISTS audits (
@@ -56,8 +57,30 @@ CREATE TABLE IF NOT EXISTS audit_log (
 CREATE INDEX IF NOT EXISTS idx_audit_log_at ON audit_log(at DESC);
 "#;
 
+const MIGRATION_V2_SQL: &str = r#"
+CREATE TABLE IF NOT EXISTS advisories (
+    id              TEXT NOT NULL,
+    package         TEXT NOT NULL,
+    introduced      TEXT,
+    fixed           TEXT,
+    summary         TEXT NOT NULL,
+    severity        TEXT,
+    aliases_json    TEXT NOT NULL DEFAULT '[]',
+    references_json TEXT NOT NULL DEFAULT '[]',
+    modified        TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_advisories_package ON advisories(package);
+CREATE INDEX IF NOT EXISTS idx_advisories_id ON advisories(id);
+
+CREATE TABLE IF NOT EXISTS advisory_meta (
+    key   TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+);
+"#;
+
 fn migrations() -> Migrations<'static> {
-    Migrations::new(vec![M::up(MIGRATION_SQL)])
+    Migrations::new(vec![M::up(MIGRATION_SQL), M::up(MIGRATION_V2_SQL)])
 }
 
 #[derive(Clone)]
@@ -361,6 +384,95 @@ impl Db {
             })
             .optional()?;
         Ok(exists.is_some())
+    }
+
+    pub fn replace_advisories(
+        &self,
+        rows: &[AdvisoryRow],
+        meta: &[(String, String)],
+    ) -> AppResult<()> {
+        let mut conn = self.lock()?;
+        let tx = conn.transaction()?;
+        tx.execute("DELETE FROM advisories", [])?;
+        {
+            let mut stmt = tx.prepare(
+                "INSERT INTO advisories
+                 (id, package, introduced, fixed, summary, severity, aliases_json, references_json, modified)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+            )?;
+            for row in rows {
+                stmt.execute(params![
+                    row.id,
+                    row.package,
+                    row.introduced,
+                    row.fixed,
+                    row.summary,
+                    row.severity,
+                    serde_json::to_string(&row.aliases)
+                        .map_err(|err| AppError::Internal(err.to_string()))?,
+                    serde_json::to_string(&row.references)
+                        .map_err(|err| AppError::Internal(err.to_string()))?,
+                    row.modified,
+                ])?;
+            }
+        }
+        tx.execute("DELETE FROM advisory_meta", [])?;
+        for (key, value) in meta {
+            tx.execute(
+                "INSERT INTO advisory_meta (key, value) VALUES (?1, ?2)",
+                params![key, value],
+            )?;
+        }
+        tx.commit()?;
+        Ok(())
+    }
+
+    pub fn advisory_meta(&self) -> AppResult<HashMap<String, String>> {
+        let conn = self.lock()?;
+        let mut stmt = conn.prepare("SELECT key, value FROM advisory_meta")?;
+        let rows = stmt.query_map([], |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+        })?;
+        let mut meta = HashMap::new();
+        for row in rows {
+            let (key, value) = row?;
+            meta.insert(key, value);
+        }
+        Ok(meta)
+    }
+
+    pub fn advisories_for(&self, packages: &[String]) -> AppResult<Vec<AdvisoryRow>> {
+        if packages.is_empty() {
+            return Ok(Vec::new());
+        }
+        let conn = self.lock()?;
+        let mut result = Vec::new();
+        for chunk in packages.chunks(400) {
+            let placeholders = vec!["?"; chunk.len()].join(",");
+            let sql = format!(
+                "SELECT id, package, introduced, fixed, summary, severity,
+                        aliases_json, references_json, modified
+                 FROM advisories WHERE package IN ({placeholders})"
+            );
+            let mut stmt = conn.prepare(&sql)?;
+            let rows = stmt.query_map(params_from_iter(chunk.iter()), |row| {
+                Ok(AdvisoryRow {
+                    id: row.get(0)?,
+                    package: row.get(1)?,
+                    introduced: row.get(2)?,
+                    fixed: row.get(3)?,
+                    summary: row.get(4)?,
+                    severity: row.get(5)?,
+                    aliases: serde_json::from_str(&row.get::<_, String>(6)?).unwrap_or_default(),
+                    references: serde_json::from_str(&row.get::<_, String>(7)?).unwrap_or_default(),
+                    modified: row.get(8)?,
+                })
+            })?;
+            for row in rows {
+                result.push(row?);
+            }
+        }
+        Ok(result)
     }
 
     pub fn db_size_bytes(&self) -> u64 {

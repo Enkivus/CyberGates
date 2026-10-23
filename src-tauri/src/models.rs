@@ -243,6 +243,60 @@ pub struct FirewallSnapshot {
     pub source: String,
 }
 
+#[derive(Debug, Clone)]
+pub struct AdvisoryRow {
+    pub id: String,
+    pub package: String,
+    pub introduced: Option<String>,
+    pub fixed: Option<String>,
+    pub summary: String,
+    pub severity: Option<String>,
+    pub aliases: Vec<String>,
+    pub references: Vec<String>,
+    pub modified: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AdvisoryMatch {
+    pub package: String,
+    pub installed_version: String,
+    pub id: String,
+    pub aliases: Vec<String>,
+    pub summary: String,
+    pub severity: Option<String>,
+    pub introduced: Option<String>,
+    pub fixed: Option<String>,
+    pub modified: Option<String>,
+    pub references: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AdvisoryReport {
+    pub available: bool,
+    pub source: String,
+    pub fetched_at: Option<String>,
+    pub record_count: u32,
+    pub package_count: u32,
+    pub checked_packages: u32,
+    pub skipped_packages: Vec<String>,
+    pub uncompared_packages: Vec<String>,
+    pub matches: Vec<AdvisoryMatch>,
+    pub scope: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AdvisoryUpdate {
+    pub source: String,
+    pub fetched_at: String,
+    pub record_count: u32,
+    pub package_count: u32,
+    pub bytes: u64,
+    pub skipped_records: u32,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ModuleStatus {

@@ -121,6 +121,41 @@ export interface InstalledApp {
   obtainedFrom: string | null;
 }
 
+export interface AdvisoryMatch {
+  package: string;
+  installedVersion: string;
+  id: string;
+  aliases: string[];
+  summary: string;
+  severity: string | null;
+  introduced: string | null;
+  fixed: string | null;
+  modified: string | null;
+  references: string[];
+}
+
+export interface AdvisoryReport {
+  available: boolean;
+  source: string;
+  fetchedAt: string | null;
+  recordCount: number;
+  packageCount: number;
+  checkedPackages: number;
+  skippedPackages: string[];
+  uncomparedPackages: string[];
+  matches: AdvisoryMatch[];
+  scope: string;
+}
+
+export interface AdvisoryUpdate {
+  source: string;
+  fetchedAt: string;
+  recordCount: number;
+  packageCount: number;
+  bytes: number;
+  skippedRecords: number;
+}
+
 export interface FirewallRule {
   path: string;
   action: string;

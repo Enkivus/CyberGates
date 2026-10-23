@@ -2,6 +2,8 @@ import { invoke } from "@tauri-apps/api/core";
 import type {
   AuditLogEntry,
   AuditRecord,
+  AdvisoryReport,
+  AdvisoryUpdate,
   Dashboard,
   Finding,
   FirewallSnapshot,
@@ -47,6 +49,8 @@ export const api = {
     call<NetworkConnection[]>("get_network_connections"),
   getInstalledApps: () => call<InstalledApp[]>("get_installed_apps"),
   getFirewallSnapshot: () => call<FirewallSnapshot | null>("get_firewall_snapshot"),
+  updateAdvisoryDatabase: () => call<AdvisoryUpdate>("update_advisory_database"),
+  getAdvisoryReport: () => call<AdvisoryReport>("get_advisory_report"),
   getModuleStatuses: () => call<ModuleStatus[]>("get_module_statuses"),
   getOpenFindings: (limit = 500) =>
     call<Finding[]>("get_open_findings", { limit }),

@@ -38,7 +38,7 @@ pub fn list() -> Vec<ModuleStatus> {
             name: "Vulnerabilities".to_string(),
             status: if macos { "partial" } else { "unavailable" }.to_string(),
             detail: if macos {
-                "Installed application and Homebrew inventory is live on macOS. Traceable advisory matching and remediation tracking are not implemented, so no vulnerability status is claimed.".to_string()
+                "Installed application and Homebrew inventory is live. Homebrew patch-declared CVEs can be matched against a downloaded advisory database with explicit freshness and scope; coverage is not complete.".to_string()
             } else {
                 "Installed-software inventory is not implemented for this platform yet.".to_string()
             },
@@ -52,8 +52,12 @@ pub fn list() -> Vec<ModuleStatus> {
         ModuleStatus {
             id: "firewall".to_string(),
             name: "Firewall".to_string(),
-            status: "partial".to_string(),
-            detail: "Firewall and stealth-mode status are audited read-only. Rule management and remediation are not implemented yet.".to_string(),
+            status: if macos { "partial" } else { "unavailable" }.to_string(),
+            detail: if macos {
+                "Read-only macOS Application Firewall state and per-application rules are live. Rule changes, impact preview, and revert are not implemented.".to_string()
+            } else {
+                "Read-only firewall inspection is not implemented for this platform yet.".to_string()
+            },
         },
         ModuleStatus {
             id: "monitoring".to_string(),
