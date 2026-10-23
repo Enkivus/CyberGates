@@ -318,6 +318,23 @@ impl Db {
         Ok(())
     }
 
+    pub fn list_audit_log(&self, limit: u32) -> AppResult<Vec<crate::models::AuditLogEntry>> {
+        let conn = self.lock()?;
+        let mut stmt = conn.prepare(
+            "SELECT id, at, action, detail, outcome FROM audit_log ORDER BY at DESC LIMIT ?1",
+        )?;
+        let rows = stmt.query_map(params![limit.clamp(1, 1000)], |row| {
+            Ok(crate::models::AuditLogEntry {
+                id: row.get(0)?,
+                at: row.get(1)?,
+                action: row.get(2)?,
+                detail: row.get(3)?,
+                outcome: row.get(4)?,
+            })
+        })?;
+        rows.collect::<Result<Vec<_>, _>>().map_err(AppError::from)
+    }
+
     pub fn prune(&self, retention_days: u32) -> AppResult<u32> {
         let cutoff = (Utc::now() - Duration::days(retention_days.clamp(1, 3650) as i64))
             .to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
@@ -327,6 +344,18 @@ impl Db {
         tx.execute("DELETE FROM audit_log WHERE at < ?1", params![cutoff])?;
         tx.commit()?;
         Ok(deleted as u32)
+    }
+
+    pub fn factors_for_audit(&self, id: &str) -> AppResult<Option<String>> {
+        let conn = self.lock()?;
+        let factors = conn
+            .query_row(
+                "SELECT factors_json FROM audits WHERE id = ?1",
+                params![id],
+                |row| row.get(0),
+            )
+            .optional()?;
+        Ok(factors)
     }
 
     pub fn audit_exists(&self, id: &str) -> AppResult<bool> {

@@ -211,7 +211,7 @@ pub struct ProcessInfo {
     pub run_time_seconds: u64,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NetworkConnection {
     pub protocol: String,
@@ -252,3 +252,13 @@ pub fn now_rfc3339() -> String {
 }
 
 pub type Timestamp = DateTime<Utc>;
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AuditLogEntry {
+    pub id: i64,
+    pub at: String,
+    pub action: String,
+    pub detail: String,
+    pub outcome: String,
+}
