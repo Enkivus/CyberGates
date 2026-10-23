@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Default capability for the main CyberGates window. No filesystem or shell plugins are exposed; all privileged work stays behind typed commands.",
+  "windows": ["main"],
+  "permissions": ["core:default"]
+}

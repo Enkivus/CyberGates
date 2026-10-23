@@ -1,0 +1,39 @@
+{
+  "name": "cybergates",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "CyberGates — cross-platform cybersecurity command center",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "tauri": "tauri"
+  },
+  "dependencies": {
+    "lucide-react": "^0.545.0",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "react-router-dom": "^7.18.4"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.0",
+    "@tailwindcss/vite": "^4.3.3",
+    "@tauri-apps/api": "^2.12.4",
+    "@tauri-apps/cli": "^2.12.4",
+    "@types/react": "^19.2.2",
+    "@types/react-dom": "^19.2.2",
+    "@vitejs/plugin-react": "^6.1.2",
+    "eslint": "^9.39.0",
+    "eslint-plugin-react-hooks": "^7.0.0",
+    "globals": "^16.5.0",
+    "tailwindcss": "^4.3.3",
+    "typescript": "~5.9.3",
+    "typescript-eslint": "^8.46.0",
+    "vite": "^8.3.5",
+    "vitest": "^4.0.0"
+  }
+}
