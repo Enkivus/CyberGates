@@ -112,6 +112,15 @@ export interface ModuleStatus {
   detail: string;
 }
 
+export interface InstalledApp {
+  name: string;
+  version: string | null;
+  source: string;
+  path: string | null;
+  signedBy: string | null;
+  obtainedFrom: string | null;
+}
+
 export interface AuditLogEntry {
   id: number;
   at: string;

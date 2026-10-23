@@ -1,5 +1,5 @@
 use crate::error::AppResult;
-use crate::models::{CheckResult, NetworkConnection};
+use crate::models::{CheckResult, InstalledApp, NetworkConnection};
 
 pub trait PlatformAudit: Send + Sync {
     fn platform_name(&self) -> &'static str;
@@ -7,6 +7,10 @@ pub trait PlatformAudit: Send + Sync {
     fn notes(&self) -> Vec<String>;
     fn audit(&self) -> Vec<CheckResult>;
     fn connections(&self) -> AppResult<Vec<NetworkConnection>> {
+        Ok(Vec::new())
+    }
+
+    fn installed_apps(&self) -> AppResult<Vec<InstalledApp>> {
         Ok(Vec::new())
     }
 }

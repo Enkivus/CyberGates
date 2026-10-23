@@ -8,7 +8,7 @@ Legend: ✅ implemented and tested · 🟡 partial · ⛔ explicitly unavailable
 
 | Capability | macOS | Windows | Linux |
 |---|---|---|---|
-| App launch / navigation / settings | ✅ | ⬜ (CI build only) | ⬜ (CI build only) |
+| App launch / navigation / settings | ✅ | ⬜ not verified | ⬜ not verified |
 | Explainable posture score | ✅ | ⛔ no adapter | ⛔ no adapter |
 | Application firewall status | ✅ | ⛔ | ⛔ |
 | Firewall stealth mode | ✅ | — | — |
@@ -28,7 +28,8 @@ Legend: ✅ implemented and tested · 🟡 partial · ⛔ explicitly unavailable
 | Malware file scanning | ⬜ | ⬜ | ⬜ |
 | Real-time protection | ⬜ | ⬜ | ⬜ |
 | Quarantine / restore | ⬜ | ⬜ | ⬜ |
-| Vulnerability inventory/matching | ⬜ | ⬜ | ⬜ |
+| Installed software inventory | ✅ apps + Homebrew | ⛔ | ⛔ |
+| Vulnerability advisory matching | ⬜ | ⬜ | ⬜ |
 | Process inventory | ✅ | ⬜ | ⬜ |
 | Event monitoring / timeline | ⬜ | ⬜ | ⬜ |
 | Network connection inventory | ✅ read-only | ⛔ | ⛔ |
@@ -41,7 +42,7 @@ Legend: ✅ implemented and tested · 🟡 partial · ⛔ explicitly unavailable
 | Multi-device management | ⛔ no backend | ⛔ | ⛔ |
 | Persisted findings / history | ✅ | ✅ (no adapter data) | ✅ (no adapter data) |
 | JSON/HTML audit reports | ✅ | ✅ | ✅ |
-| CI build verification | ✅ local | ⬜ pending CI | ⬜ pending CI |
+| CI build verification | ⬜ pending CI | ⬜ pending CI | ⬜ pending CI |
 | Signed installer | ⬜ unsigned | ⬜ unsigned | ⬜ unsigned |
 
 ## macOS specifics

@@ -36,8 +36,12 @@ pub fn list() -> Vec<ModuleStatus> {
         ModuleStatus {
             id: "vulnerabilities".to_string(),
             name: "Vulnerabilities".to_string(),
-            status: "planned".to_string(),
-            detail: "Installed-software inventory and advisory matching are not implemented yet.".to_string(),
+            status: if macos { "partial" } else { "unavailable" }.to_string(),
+            detail: if macos {
+                "Installed application and Homebrew inventory is live on macOS. Traceable advisory matching and remediation tracking are not implemented, so no vulnerability status is claimed.".to_string()
+            } else {
+                "Installed-software inventory is not implemented for this platform yet.".to_string()
+            },
         },
         ModuleStatus {
             id: "network".to_string(),

@@ -16,8 +16,8 @@ import {
   Scanner,
   ThreatProtection,
   Toolkit,
-  Vulnerabilities,
 } from "./features/modules/ModulePages";
+import { Vulnerabilities } from "./features/vulnerabilities/Vulnerabilities";
 import { api } from "./lib/api";
 import { applyTheme, initialTheme, type Theme } from "./lib/theme";
 

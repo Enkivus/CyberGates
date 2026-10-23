@@ -61,6 +61,7 @@ pub fn run() {
             commands::get_system_info,
             commands::get_processes,
             commands::get_network_connections,
+            commands::get_installed_apps,
             commands::get_module_statuses,
             commands::get_open_findings,
             commands::get_audit_history,

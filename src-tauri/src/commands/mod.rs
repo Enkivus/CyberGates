@@ -3,8 +3,8 @@ use tauri::State;
 
 use crate::error::{AppError, AppResult};
 use crate::models::{
-    AuditLogEntry, AuditRecord, Dashboard, Finding, ModuleStatus, NetworkConnection, ProcessInfo,
-    SystemInfo,
+    AuditLogEntry, AuditRecord, Dashboard, Finding, InstalledApp, ModuleStatus, NetworkConnection,
+    ProcessInfo, SystemInfo,
 };
 use crate::platform;
 use crate::security::validate;
@@ -103,6 +103,16 @@ pub async fn get_network_connections(
     tauri::async_runtime::spawn_blocking(services::network::default_connections)
         .await
         .map_err(|err| AppError::Task(err.to_string()))?
+}
+
+#[tauri::command]
+pub async fn get_installed_apps(_state: State<'_, AppState>) -> AppResult<Vec<InstalledApp>> {
+    tauri::async_runtime::spawn_blocking(|| {
+        let adapter = platform::adapter();
+        adapter.installed_apps()
+    })
+    .await
+    .map_err(|err| AppError::Task(err.to_string()))?
 }
 
 #[tauri::command]

@@ -1,7 +1,9 @@
 use std::time::Duration;
 
-use crate::error::AppResult;
-use crate::models::{now_rfc3339, CheckResult, CheckStatus, NetworkConnection, Severity};
+use crate::error::{AppError, AppResult};
+use crate::models::{
+    now_rfc3339, CheckResult, CheckStatus, InstalledApp, NetworkConnection, Severity,
+};
 use crate::platform::PlatformAudit;
 use crate::security::process::{run_optional, CommandOutput};
 
@@ -42,6 +44,36 @@ impl PlatformAudit for MacOsAdapter {
             backup_check(),
             xprotect_check(),
         ]
+    }
+
+    fn installed_apps(&self) -> AppResult<Vec<InstalledApp>> {
+        let mut apps = Vec::new();
+
+        if let Some(output) = run_optional(
+            "/usr/sbin/system_profiler",
+            &["SPApplicationsDataType", "-json"],
+            Duration::from_secs(30),
+        ) {
+            if !output.stdout.trim().is_empty() {
+                apps.extend(parse_system_profiler(&output.stdout)?);
+            }
+        }
+
+        for brew in ["/opt/homebrew/bin/brew", "/usr/local/bin/brew"] {
+            if let Some(output) =
+                run_optional(brew, &["list", "--versions"], Duration::from_secs(12))
+            {
+                apps.extend(parse_brew(&output.stdout));
+                break;
+            }
+        }
+
+        apps.sort_by_key(|a| a.name.to_lowercase());
+        apps.dedup_by(|a, b| {
+            a.name.eq_ignore_ascii_case(&b.name) && a.version == b.version && a.source == b.source
+        });
+        apps.truncate(2000);
+        Ok(apps)
     }
 
     fn connections(&self) -> AppResult<Vec<NetworkConnection>> {
@@ -490,6 +522,72 @@ fn xprotect_check() -> CheckResult {
     )
 }
 
+fn parse_system_profiler(json: &str) -> AppResult<Vec<InstalledApp>> {
+    let value: serde_json::Value = serde_json::from_str(json)
+        .map_err(|err| AppError::Internal(format!("invalid system_profiler JSON: {err}")))?;
+    let entries = value
+        .get("SPApplicationsDataType")
+        .and_then(|value| value.as_array())
+        .cloned()
+        .unwrap_or_default();
+
+    Ok(entries
+        .iter()
+        .filter_map(|entry| {
+            let name = entry.get("_name")?.as_str()?.trim().to_string();
+            if name.is_empty() {
+                return None;
+            }
+            let signed_by = entry
+                .get("signed_by")
+                .and_then(|value| value.as_array())
+                .and_then(|array| array.first())
+                .and_then(|value| value.as_str())
+                .map(str::to_string);
+            Some(InstalledApp {
+                name,
+                version: entry
+                    .get("version")
+                    .and_then(|value| value.as_str())
+                    .map(str::to_string),
+                source: "Application".to_string(),
+                path: entry
+                    .get("path")
+                    .and_then(|value| value.as_str())
+                    .map(str::to_string),
+                signed_by,
+                obtained_from: entry
+                    .get("obtained_from")
+                    .and_then(|value| value.as_str())
+                    .map(str::to_string),
+            })
+        })
+        .collect())
+}
+
+fn parse_brew(stdout: &str) -> Vec<InstalledApp> {
+    stdout
+        .lines()
+        .filter_map(|line| {
+            let mut fields = line.split_whitespace();
+            let name = fields.next()?.to_string();
+            let versions: Vec<&str> = fields.collect();
+            Some(InstalledApp {
+                name,
+                version: if versions.is_empty() {
+                    None
+                } else {
+                    Some(versions.join(" "))
+                },
+                source: "Homebrew".to_string(),
+                path: None,
+                signed_by: None,
+                obtained_from: Some("homebrew".to_string()),
+            })
+        })
+        .collect()
+}
+
 fn parse_lsof(output: &CommandOutput) -> Vec<NetworkConnection> {
     let mut connections = Vec::new();
     for line in output.stdout.lines().skip(1) {
@@ -531,6 +629,39 @@ fn parse_lsof(output: &CommandOutput) -> Vec<NetworkConnection> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn parses_system_profiler_json() {
+        let json = r#"{
+          "SPApplicationsDataType": [
+            {"_name":"Example","version":"1.2.3","path":"/Applications/Example.app","obtained_from":"identified_developer","signed_by":["Developer ID Application: Example (ABC)"]},
+            {"_name":"","version":"1.0"}
+          ]
+        }"#;
+        let apps = parse_system_profiler(json).unwrap();
+        assert_eq!(apps.len(), 1);
+        assert_eq!(apps[0].name, "Example");
+        assert_eq!(apps[0].version.as_deref(), Some("1.2.3"));
+        assert_eq!(
+            apps[0].signed_by.as_deref(),
+            Some("Developer ID Application: Example (ABC)")
+        );
+    }
+
+    #[test]
+    fn parses_brew_versions() {
+        let apps = parse_brew("jq 1.7.1\nopenssl@3 3.5.1\n");
+        assert_eq!(apps.len(), 2);
+        assert_eq!(apps[0].source, "Homebrew");
+        assert_eq!(apps[1].version.as_deref(), Some("3.5.1"));
+    }
+
+    #[test]
+    #[ignore = "reads live system inventory; run explicitly on macOS"]
+    fn live_inventory_smoke() {
+        let apps = MacOsAdapter.installed_apps().expect("live inventory");
+        assert!(!apps.is_empty(), "expected at least one installed item");
+    }
 
     #[test]
     fn parses_lsof_lines() {

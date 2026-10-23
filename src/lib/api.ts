@@ -4,6 +4,7 @@ import type {
   AuditRecord,
   Dashboard,
   Finding,
+  InstalledApp,
   ModuleStatus,
   NetworkConnection,
   ProcessInfo,
@@ -43,6 +44,7 @@ export const api = {
   getProcesses: (limit = 250) => call<ProcessInfo[]>("get_processes", { limit }),
   getNetworkConnections: () =>
     call<NetworkConnection[]>("get_network_connections"),
+  getInstalledApps: () => call<InstalledApp[]>("get_installed_apps"),
   getModuleStatuses: () => call<ModuleStatus[]>("get_module_statuses"),
   getOpenFindings: (limit = 500) =>
     call<Finding[]>("get_open_findings", { limit }),

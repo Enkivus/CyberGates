@@ -28,8 +28,10 @@ Status is based on code presence **and verification**, not screen existence.
 
 ## 4. Vulnerabilities
 
-- ⬜ Package inventory, advisory feed, version-range matching, remediation tracking
-- ⛔ No loose name-only vulnerability claims
+- 🟡 Installed-software inventory on macOS: applications via `system_profiler`,
+  Homebrew formulae via `brew list --versions`, searchable with signature/trust data
+- ⬜ Advisory feed, version-range matching, remediation tracking
+- ⛔ No loose name-only vulnerability claims; inventory is not a scan result
 
 ## 5. Network Security
 
@@ -105,7 +107,8 @@ Status is based on code presence **and verification**, not screen existence.
 
 ## Next implementation priorities
 
-1. Installed-software inventory (then vulnerability matching with licensed feeds).
+1. Traceable advisory matching with licensed feeds and explicit data freshness
+   (inventory already exists; do not guess version ranges).
 2. Malware engine integration behind a trait + quarantine with safety controls.
 3. Security event monitoring and a searchable timeline.
 4. Windows and Linux audit adapters, tested on each platform.

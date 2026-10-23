@@ -86,49 +86,6 @@ export function Scanner() {
   );
 }
 
-export function Vulnerabilities() {
-  return (
-    <ModulePage
-      moduleId="vulnerabilities"
-      title="Vulnerabilities"
-      subtitle="Installed-software inventory and traceable advisory matching for outdated or vulnerable components."
-      capabilities={[
-        {
-          label: "Installed application and package inventory",
-          state: "planned",
-          detail:
-            "Not implemented yet. Planned through per-OS package-manager adapters (Homebrew, pkgutil, apt, dnf, pacman, winget/registry).",
-        },
-        {
-          label: "Advisory matching with version ranges",
-          state: "planned",
-          detail:
-            "Requires licensed, traceable advisory feeds and strict version-range matching. No name-only guesses will be reported.",
-        },
-        {
-          label: "Data freshness timestamp",
-          state: "planned",
-          detail:
-            "Every vulnerability result will show when its advisory data was last updated.",
-        },
-        {
-          label: "Remediation tracking and rescan",
-          state: "planned",
-          detail:
-            "Findings will carry status and remediation history, with verification after updates.",
-        },
-        {
-          label: "Safe, nonintrusive assessment",
-          state: "planned",
-          detail:
-            "CyberGates will never exploit a vulnerability to prove it exists.",
-        },
-      ]}
-      safety="This module does not currently report vulnerabilities. An empty screen must not be read as 'no vulnerabilities'. Advisory licenses, feed access, and matching rules must be established before any claim is made."
-    />
-  );
-}
-
 export function FirewallPage() {
   return (
     <ModulePage

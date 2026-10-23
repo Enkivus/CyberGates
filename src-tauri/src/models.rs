@@ -214,6 +214,17 @@ pub struct NetworkConnection {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct InstalledApp {
+    pub name: String,
+    pub version: Option<String>,
+    pub source: String,
+    pub path: Option<String>,
+    pub signed_by: Option<String>,
+    pub obtained_from: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ModuleStatus {
     pub id: String,
     pub name: String,
