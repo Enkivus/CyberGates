@@ -24,6 +24,7 @@ capabilities are shown as unavailable or planned.
 - Live process inventory with executable paths
 - Read-only TCP/UDP connection inventory with owning process where exposed
 - Installed software inventory (macOS applications + Homebrew) with signature/trust data
+- Read-only macOS Application Firewall snapshot with per-app allow/block rules
 - SQLite persistence with migrations, findings history, retention pruning, audit log
 - Sanitized JSON and HTML audit reports
 - Dark/light UI, all 15 product sections discoverable, honest capability states

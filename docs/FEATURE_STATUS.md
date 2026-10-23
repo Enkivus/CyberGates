@@ -42,9 +42,11 @@ Status is based on code presence **and verification**, not screen existence.
 
 ## 6. Firewall
 
-- 🟡 Firewall and stealth-mode **status only** via audit
-- ⬜ Rule inspection, impact preview, apply/revert, verification
-- ⛔ Never disables/flushes firewall automatically
+- 🟡 Read-only macOS Application Firewall snapshot: global state, stealth, block-all,
+  signed-software handling, and per-application allow/block exceptions
+- ✅ Search/filter and explicit read-only/interpretation warnings
+- ⬜ Rule changes, impact preview, apply/revert, verification
+- ⛔ Never disables/flushes or edits firewall rules automatically
 
 ## 7. System Monitoring
 

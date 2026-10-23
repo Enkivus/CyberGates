@@ -86,43 +86,6 @@ export function Scanner() {
   );
 }
 
-export function FirewallPage() {
-  return (
-    <ModulePage
-      moduleId="firewall"
-      title="Firewall"
-      subtitle="Native firewall visibility and, eventually, narrowly scoped rule management with impact preview and verification."
-      capabilities={[
-        {
-          label: "Firewall enabled status",
-          state: "partial",
-          detail:
-            "The Overview audit reads the macOS application firewall state and reports it with evidence.",
-        },
-        {
-          label: "Stealth mode status",
-          state: "partial",
-          detail:
-            "The audit also reads stealth mode. Both checks are read-only.",
-        },
-        {
-          label: "Rule inspection",
-          state: "planned",
-          detail:
-            "No rule list is available yet. Rule parsing and risky-configuration explanation are planned.",
-        },
-        {
-          label: "Apply, revert, and verify changes",
-          state: "planned",
-          detail:
-            "Not implemented. Future changes will require confirmation, an impact explanation, an undo path, and an audit record.",
-        },
-      ]}
-      safety="CyberGates will never flush all firewall rules, disable the firewall, or make broad network changes as a shortcut. Any future privileged change must be explicit and reversible."
-    />
-  );
-}
-
 export function Privacy() {
   return (
     <ModulePage

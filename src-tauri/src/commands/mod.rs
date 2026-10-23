@@ -3,8 +3,8 @@ use tauri::State;
 
 use crate::error::{AppError, AppResult};
 use crate::models::{
-    AuditLogEntry, AuditRecord, Dashboard, Finding, InstalledApp, ModuleStatus, NetworkConnection,
-    ProcessInfo, SystemInfo,
+    AuditLogEntry, AuditRecord, Dashboard, Finding, FirewallSnapshot, InstalledApp, ModuleStatus,
+    NetworkConnection, ProcessInfo, SystemInfo,
 };
 use crate::platform;
 use crate::security::validate;
@@ -110,6 +110,18 @@ pub async fn get_installed_apps(_state: State<'_, AppState>) -> AppResult<Vec<In
     tauri::async_runtime::spawn_blocking(|| {
         let adapter = platform::adapter();
         adapter.installed_apps()
+    })
+    .await
+    .map_err(|err| AppError::Task(err.to_string()))?
+}
+
+#[tauri::command]
+pub async fn get_firewall_snapshot(
+    _state: State<'_, AppState>,
+) -> AppResult<Option<FirewallSnapshot>> {
+    tauri::async_runtime::spawn_blocking(|| {
+        let adapter = platform::adapter();
+        adapter.firewall_snapshot()
     })
     .await
     .map_err(|err| AppError::Task(err.to_string()))?

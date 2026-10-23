@@ -1,5 +1,5 @@
 use crate::error::AppResult;
-use crate::models::{CheckResult, InstalledApp, NetworkConnection};
+use crate::models::{CheckResult, FirewallSnapshot, InstalledApp, NetworkConnection};
 
 pub trait PlatformAudit: Send + Sync {
     fn platform_name(&self) -> &'static str;
@@ -12,6 +12,10 @@ pub trait PlatformAudit: Send + Sync {
 
     fn installed_apps(&self) -> AppResult<Vec<InstalledApp>> {
         Ok(Vec::new())
+    }
+
+    fn firewall_snapshot(&self) -> AppResult<Option<FirewallSnapshot>> {
+        Ok(None)
     }
 }
 

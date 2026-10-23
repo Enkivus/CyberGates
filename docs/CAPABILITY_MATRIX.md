@@ -11,8 +11,9 @@ Legend: ✅ implemented and tested · 🟡 partial · ⛔ explicitly unavailable
 | App launch / navigation / settings | ✅ | ⬜ not verified | ⬜ not verified |
 | Explainable posture score | ✅ | ⛔ no adapter | ⛔ no adapter |
 | Application firewall status | ✅ | ⛔ | ⛔ |
+| Firewall app-rule inspection | ✅ read-only | ⛔ | ⛔ |
 | Firewall stealth mode | ✅ | — | — |
-| Firewall rule inspection/change | ⬜ | ⬜ | ⬜ |
+| Firewall rule changes/apply/revert | ⬜ | ⬜ | ⬜ |
 | Disk encryption (FileVault/BitLocker/LUKS) | ✅ FileVault | ⛔ | ⛔ |
 | OS integrity protection (SIP) | ✅ | — | — |
 | Gatekeeper / app verification | ✅ | — | — |

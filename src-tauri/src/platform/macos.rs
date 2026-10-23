@@ -2,7 +2,8 @@ use std::time::Duration;
 
 use crate::error::{AppError, AppResult};
 use crate::models::{
-    now_rfc3339, CheckResult, CheckStatus, InstalledApp, NetworkConnection, Severity,
+    now_rfc3339, CheckResult, CheckStatus, FirewallRule, FirewallSnapshot, InstalledApp,
+    NetworkConnection, Severity,
 };
 use crate::platform::PlatformAudit;
 use crate::security::process::{run_optional, run_optional_with_limit, CommandOutput};
@@ -44,6 +45,45 @@ impl PlatformAudit for MacOsAdapter {
             backup_check(),
             xprotect_check(),
         ]
+    }
+
+    fn firewall_snapshot(&self) -> AppResult<Option<FirewallSnapshot>> {
+        let tool = "/usr/libexec/ApplicationFirewall/socketfilterfw";
+        let Some(list) = run_optional(tool, &["--listapps"], TOOL_TIMEOUT) else {
+            return Err(AppError::Internal(
+                "could not run the macOS Application Firewall tool".to_string(),
+            ));
+        };
+        if !list.success {
+            return Err(AppError::Internal(
+                "macOS Application Firewall rules could not be read".to_string(),
+            ));
+        }
+
+        let enabled = run_optional(tool, &["--getglobalstate"], TOOL_TIMEOUT)
+            .filter(|output| output.success)
+            .and_then(|output| parse_firewall_enabled(&output.stdout));
+        let stealth_mode = run_optional(tool, &["--getstealthmode"], TOOL_TIMEOUT)
+            .filter(|output| output.success)
+            .and_then(|output| parse_stealth_mode(&output.stdout));
+        let block_all = run_optional(tool, &["--getblockall"], TOOL_TIMEOUT)
+            .filter(|output| output.success)
+            .and_then(|output| parse_block_all(&output.stdout));
+        let allow_signed = run_optional(tool, &["--getallowsigned"], TOOL_TIMEOUT)
+            .filter(|output| output.success)
+            .map(|output| parse_allow_signed(&output.stdout));
+        let (allow_signed_builtin, allow_signed_downloaded) = allow_signed.unwrap_or((None, None));
+
+        Ok(Some(FirewallSnapshot {
+            enabled,
+            stealth_mode,
+            block_all,
+            allow_signed_builtin,
+            allow_signed_downloaded,
+            rules: parse_firewall_rules(&list.stdout),
+            fetched_at: now_rfc3339(),
+            source: "macOS Application Firewall (socketfilterfw)".to_string(),
+        }))
     }
 
     fn installed_apps(&self) -> AppResult<Vec<InstalledApp>> {
@@ -523,6 +563,100 @@ fn xprotect_check() -> CheckResult {
     )
 }
 
+fn parse_firewall_enabled(stdout: &str) -> Option<bool> {
+    if stdout.contains("State = 1") {
+        Some(true)
+    } else if stdout.contains("State = 0") {
+        Some(false)
+    } else {
+        None
+    }
+}
+
+fn parse_stealth_mode(stdout: &str) -> Option<bool> {
+    let lower = stdout.to_lowercase();
+    if lower.contains("stealth mode is on") {
+        Some(true)
+    } else if lower.contains("stealth mode is off") {
+        Some(false)
+    } else {
+        None
+    }
+}
+
+fn parse_block_all(stdout: &str) -> Option<bool> {
+    let lower = stdout.to_lowercase();
+    if lower.contains("set to enabled") {
+        Some(true)
+    } else if lower.contains("set to disabled") {
+        Some(false)
+    } else {
+        None
+    }
+}
+
+fn parse_allow_signed(stdout: &str) -> (Option<bool>, Option<bool>) {
+    let mut builtin = None;
+    let mut downloaded = None;
+    for line in stdout.lines() {
+        let lower = line.to_lowercase();
+        let value = if lower.contains("enabled") {
+            Some(true)
+        } else if lower.contains("disabled") {
+            Some(false)
+        } else {
+            None
+        };
+        if lower.contains("built-in signed software") {
+            builtin = value;
+        } else if lower.contains("downloaded signed software") {
+            downloaded = value;
+        }
+    }
+    (builtin, downloaded)
+}
+
+fn parse_firewall_rules(stdout: &str) -> Vec<FirewallRule> {
+    let mut rules = Vec::new();
+    let mut pending_path: Option<String> = None;
+
+    for line in stdout.lines() {
+        let trimmed = line.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+        if let Some((index, rest)) = trimmed.split_once(':') {
+            if index.trim().parse::<usize>().is_ok() {
+                if let Some(path) = pending_path.take() {
+                    rules.push(FirewallRule {
+                        path,
+                        action: "Unknown".to_string(),
+                    });
+                }
+                pending_path = Some(rest.trim().to_string());
+                continue;
+            }
+        }
+        if let Some(path) = pending_path.take() {
+            let action = trimmed.trim_matches(|c| c == '(' || c == ')').trim();
+            let action = if action.is_empty() {
+                "Unknown".to_string()
+            } else {
+                action.to_string()
+            };
+            rules.push(FirewallRule { path, action });
+        }
+    }
+
+    if let Some(path) = pending_path {
+        rules.push(FirewallRule {
+            path,
+            action: "Unknown".to_string(),
+        });
+    }
+    rules
+}
+
 fn parse_system_profiler(json: &str) -> AppResult<Vec<InstalledApp>> {
     let value: serde_json::Value = serde_json::from_str(json)
         .map_err(|err| AppError::Internal(format!("invalid system_profiler JSON: {err}")))?;
@@ -632,6 +766,40 @@ mod tests {
     use super::*;
 
     #[test]
+    fn parses_firewall_rules() {
+        let output = "Total number of apps = 2 \n\n1 : /Applications/Example.app \n             (Allow incoming connections)\n2 : /usr/libexec/example\n             (Block incoming connections)\n";
+        let rules = parse_firewall_rules(output);
+        assert_eq!(rules.len(), 2);
+        assert_eq!(rules[0].path, "/Applications/Example.app");
+        assert_eq!(rules[0].action, "Allow incoming connections");
+        assert_eq!(rules[1].action, "Block incoming connections");
+    }
+
+    #[test]
+    fn parses_firewall_state_flags() {
+        assert_eq!(
+            parse_firewall_enabled("Firewall is enabled. (State = 1)"),
+            Some(true)
+        );
+        assert_eq!(
+            parse_firewall_enabled("Firewall is disabled. (State = 0)"),
+            Some(false)
+        );
+        assert_eq!(
+            parse_stealth_mode("Firewall stealth mode is on"),
+            Some(true)
+        );
+        assert_eq!(
+            parse_block_all("Firewall has block all state set to disabled."),
+            Some(false)
+        );
+        assert_eq!(
+            parse_allow_signed("Automatically allow built-in signed software ENABLED.\nAutomatically allow downloaded signed software DISABLED."),
+            (Some(true), Some(false))
+        );
+    }
+
+    #[test]
     fn parses_system_profiler_json() {
         let json = r#"{
           "SPApplicationsDataType": [
@@ -655,6 +823,17 @@ mod tests {
         assert_eq!(apps.len(), 2);
         assert_eq!(apps[0].source, "Homebrew");
         assert_eq!(apps[1].version.as_deref(), Some("3.5.1"));
+    }
+
+    #[test]
+    #[ignore = "reads live firewall state; run explicitly on macOS"]
+    fn live_firewall_smoke() {
+        let snapshot = MacOsAdapter
+            .firewall_snapshot()
+            .expect("live firewall read")
+            .expect("macOS snapshot");
+        assert!(snapshot.enabled.is_some());
+        assert!(!snapshot.rules.is_empty(), "expected firewall app rules");
     }
 
     #[test]

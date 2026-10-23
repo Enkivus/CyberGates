@@ -225,6 +225,26 @@ pub struct InstalledApp {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct FirewallRule {
+    pub path: String,
+    pub action: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FirewallSnapshot {
+    pub enabled: Option<bool>,
+    pub stealth_mode: Option<bool>,
+    pub block_all: Option<bool>,
+    pub allow_signed_builtin: Option<bool>,
+    pub allow_signed_downloaded: Option<bool>,
+    pub rules: Vec<FirewallRule>,
+    pub fetched_at: String,
+    pub source: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ModuleStatus {
     pub id: String,
     pub name: String,

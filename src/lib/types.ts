@@ -121,6 +121,22 @@ export interface InstalledApp {
   obtainedFrom: string | null;
 }
 
+export interface FirewallRule {
+  path: string;
+  action: string;
+}
+
+export interface FirewallSnapshot {
+  enabled: boolean | null;
+  stealthMode: boolean | null;
+  blockAll: boolean | null;
+  allowSignedBuiltin: boolean | null;
+  allowSignedDownloaded: boolean | null;
+  rules: FirewallRule[];
+  fetchedAt: string;
+  source: string;
+}
+
 export interface AuditLogEntry {
   id: number;
   at: string;

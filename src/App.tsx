@@ -10,7 +10,6 @@ import {
   AccountSecurity,
   Backup,
   Devices,
-  FirewallPage,
   IncidentResponse,
   Privacy,
   Scanner,
@@ -18,6 +17,7 @@ import {
   Toolkit,
 } from "./features/modules/ModulePages";
 import { Vulnerabilities } from "./features/vulnerabilities/Vulnerabilities";
+import { Firewall } from "./features/firewall/Firewall";
 import { api } from "./lib/api";
 import { applyTheme, initialTheme, type Theme } from "./lib/theme";
 
@@ -45,7 +45,7 @@ export default function App() {
           <Route path="scanner" element={<Scanner />} />
           <Route path="vulnerabilities" element={<Vulnerabilities />} />
           <Route path="network" element={<NetworkSecurity />} />
-          <Route path="firewall" element={<FirewallPage />} />
+          <Route path="firewall" element={<Firewall />} />
           <Route path="monitoring" element={<Monitoring />} />
           <Route path="privacy" element={<Privacy />} />
           <Route path="account" element={<AccountSecurity />} />

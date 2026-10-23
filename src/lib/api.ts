@@ -4,6 +4,7 @@ import type {
   AuditRecord,
   Dashboard,
   Finding,
+  FirewallSnapshot,
   InstalledApp,
   ModuleStatus,
   NetworkConnection,
@@ -45,6 +46,7 @@ export const api = {
   getNetworkConnections: () =>
     call<NetworkConnection[]>("get_network_connections"),
   getInstalledApps: () => call<InstalledApp[]>("get_installed_apps"),
+  getFirewallSnapshot: () => call<FirewallSnapshot | null>("get_firewall_snapshot"),
   getModuleStatuses: () => call<ModuleStatus[]>("get_module_statuses"),
   getOpenFindings: (limit = 500) =>
     call<Finding[]>("get_open_findings", { limit }),
