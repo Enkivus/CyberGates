@@ -5,7 +5,7 @@ use crate::models::{
     now_rfc3339, CheckResult, CheckStatus, InstalledApp, NetworkConnection, Severity,
 };
 use crate::platform::PlatformAudit;
-use crate::security::process::{run_optional, CommandOutput};
+use crate::security::process::{run_optional, run_optional_with_limit, CommandOutput};
 
 const SOURCE: &str = "macOS native tooling";
 const TOOL_TIMEOUT: Duration = Duration::from_secs(6);
@@ -49,10 +49,11 @@ impl PlatformAudit for MacOsAdapter {
     fn installed_apps(&self) -> AppResult<Vec<InstalledApp>> {
         let mut apps = Vec::new();
 
-        if let Some(output) = run_optional(
+        if let Some(output) = run_optional_with_limit(
             "/usr/sbin/system_profiler",
             &["SPApplicationsDataType", "-json"],
             Duration::from_secs(30),
+            8 * 1024 * 1024,
         ) {
             if !output.stdout.trim().is_empty() {
                 apps.extend(parse_system_profiler(&output.stdout)?);

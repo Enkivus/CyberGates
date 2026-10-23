@@ -33,7 +33,7 @@ versus planned. It must be updated whenever a new privileged capability is added
 |---|---|---|---|
 | Command injection via IPC | Arbitrary code execution | No shell plugin; fixed programs + argument arrays; no user-controlled commands | Implemented |
 | Path traversal / symlink abuse | Read/write outside intended paths | Report paths are app-generated; `safe_absolute_path` helper validates future file ops; report format allowlist | Partial (file ops limited) |
-| Malicious/oversized tool output | Memory exhaustion, UI injection | Output capped at 512 KiB; timeouts on every subprocess; React escapes text | Implemented |
+| Malicious/oversized tool output | Memory exhaustion, UI injection | Output capped (512 KiB default, 8 MiB for `system_profiler`); timeouts on every subprocess; React escapes text | Implemented |
 | Unauthorized IPC / parameter abuse | Data tampering, expensive work | Typed commands, clamped limits, setting allowlist, audit concurrency guard | Implemented |
 | Database corruption / partial audit | Misleading history | WAL, migrations, transactions, interrupted-audit recovery | Implemented |
 | Sensitive data leakage via reports/logs | Privacy harm | Reports warn and are local; logs exclude secrets/content; no telemetry | Partial (reports are sensitive by nature) |
