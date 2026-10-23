@@ -18,7 +18,7 @@ CyberGates is a Tauri 2 desktop application:
                                    │ Tauri commands (JSON DTOs, camelCase)
 ┌──────────────────────────────────▼──────────────────────────────────────────┐
 │ commands/        thin handlers: validate → service → DTO                    │
-│ services/        audit, system, network, modules, reports                    │
+│ services/        audit, system, network, advisories, modules, reports        │
 │ core/scoring     deterministic weighted score + finding derivation          │
 │ platform/        trait PlatformAudit; macOS adapter; unsupported fallback    │
 │ security/        direct process runner (timeouts, no shell), validation      │
@@ -29,6 +29,7 @@ CyberGates is a Tauri 2 desktop application:
 ┌──────────────────────────────────▼──────────────────────────────────────────┐
 │ macOS native tools: socketfilterfw, fdesetup, csrutil, spctl, softwareupdate │
 │ sysadminctl, launchctl, lsof, tmutil, defaults · sysinfo for inventory        │
+│ optional HTTPS download: Homebrew OSV advisory database (user-triggered)      │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -40,6 +41,7 @@ CyberGates is a Tauri 2 desktop application:
 | `services::audit` | Runs an audit, persists it, resolves absent findings, builds dashboard. |
 | `services::system` | Host inventory and process sampling via `sysinfo`. |
 | `services::network` | Delegates read-only connection inventory to the platform adapter. |
+| `services::advisories` | Downloads/indexes Homebrew's OSV feed; conservative local matching. |
 | `services::reports` | Sanitized JSON/HTML report generation into the app data directory. |
 | `services::modules` | Honest per-module capability status shown in the UI. |
 | `core::scoring` | Pure scoring and finding construction; unit-tested. |
@@ -75,22 +77,36 @@ partial results are presented as complete.
 This makes missing platform permissions visible instead of silently changing the
 score, and prevents fabricated "protection" claims.
 
-## Database schema (v1)
+## Data flow: advisory matching
+
+1. The user explicitly updates the advisory database. Rust downloads Homebrew's
+   OSV-format tarball over HTTPS (fixed URL, 64 MiB cap), parses it in memory, and
+   replaces the local advisory index in SQLite inside a transaction.
+2. Matching reads installed Homebrew packages and local advisory rows only; it does not
+   send inventory to a server.
+3. The feed's fixed boundary can be generation-time, so only same-upstream-version
+   revision patches with `fix=patch` are reported. Version-bump records are counted as
+   unverified and never presented as confirmed vulnerabilities.
+
+## Database schema (v2)
 
 - `audits(id, started_at, finished_at, score, status, platform, factors_json)`
 - `findings(id, audit_id → audits, check_id, title, severity, status, category,
   evidence, explanation, remediation, verification, source, detected_at, resolved_at)`
 - `settings(key, value)` — seeded defaults; allowlisted updates
 - `audit_log(id, at, action, detail, outcome)`
+- `advisories(id, package, introduced, fixed, fix_kind, summary, severity,
+  aliases_json, references_json, modified)` — downloaded feed index
+- `advisory_meta(key, value)` — source, fetched_at, counts, scope
 
 Migrations are versioned with `rusqlite_migration`. Foreign keys are enabled and WAL
 mode is on. Retention pruning deletes old audits (findings cascade) and log entries.
 
 ## Platform model
 
-`PlatformAudit` exposes `platform_name`, `supported`, `notes`, `audit`, and
-`connections`. Each OS must implement a real adapter and be tested before claiming
-support.
+`PlatformAudit` exposes `platform_name`, `supported`, `notes`, `audit`, `connections`,
+`installed_apps`, and `firewall_snapshot`. Each OS must implement a real adapter and be
+tested before claiming support.
 
 - **macOS:** read-only native tooling; implemented.
 - **Windows/Linux:** compile and run, but only report "adapter unavailable". They make
@@ -117,6 +133,8 @@ Adding an adapter must not change the UI contract; capability states are data.
 - `features/overview` — dashboard, score explanation, findings, posture checks.
 - `features/monitoring` — process table and detail dialog.
 - `features/network` — read-only connection table and filters.
+- `features/firewall` — read-only Application Firewall state and app rules.
+- `features/vulnerabilities` — software inventory and optional Homebrew advisories.
 - `features/reports` — audit history, findings viewer, exports, activity log.
 - `features/settings` — theme, retention, preferences, storage, limitations.
 - `features/modules` — per-module capability descriptions.

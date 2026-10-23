@@ -13,7 +13,7 @@ use crate::models::{
 const SOURCE_URL: &str =
     "https://codeload.github.com/Homebrew/advisory-database/tar.gz/refs/heads/main";
 const SOURCE_NAME: &str = "Homebrew advisory database (OSV format)";
-const SCOPE: &str = "Homebrew formula CVEs that Homebrew records as fixed by an applied patch or version bump. This feed is an early Homebrew project and is not a complete vulnerability database.";
+const SCOPE: &str = "Homebrew formula CVEs that Homebrew records as fixed by an applied patch or version bump. The feed's fixed boundary can be the version shipped at generation time, so CyberGates reports only same-version revision patches and treats version-bump boundaries as unverified. This early Homebrew feed is not a complete vulnerability database.";
 const MAX_DOWNLOAD_BYTES: u64 = 64 * 1024 * 1024;
 const MAX_UNPACKED_BYTES: u64 = 256 * 1024 * 1024;
 const MAX_RECORD_BYTES: u64 = 2 * 1024 * 1024;
@@ -119,6 +119,7 @@ pub fn report(db: &Db, apps: &[InstalledApp]) -> AppResult<AdvisoryReport> {
         checked_packages: packages.len() as u32,
         skipped_packages,
         uncompared_packages: Vec::new(),
+        unverified_records: 0,
         matches: Vec::new(),
         scope: SCOPE.to_string(),
     };
@@ -130,6 +131,7 @@ pub fn report(db: &Db, apps: &[InstalledApp]) -> AppResult<AdvisoryReport> {
     let names: Vec<String> = packages.iter().map(|(name, _)| name.clone()).collect();
     let rows = db.advisories_for(&names)?;
     let mut uncompared = HashSet::new();
+    let mut unverified_records = 0u32;
     let mut matches = Vec::new();
 
     for (name, installed) in &packages {
@@ -151,18 +153,38 @@ pub fn report(db: &Db, apps: &[InstalledApp]) -> AppResult<AdvisoryReport> {
                 continue;
             }
 
-            let fixed_ok = match row.fixed.as_deref() {
-                None => true,
-                Some(fixed) => match compare(installed, fixed) {
-                    Ok(Cmp::Lt) => true,
-                    Ok(_) => false,
-                    Err(()) => {
-                        uncompared.insert(name.clone());
-                        continue;
-                    }
-                },
+            let Some(fixed) = row.fixed.as_deref() else {
+                unverified_records += 1;
+                continue;
             };
-            if !fixed_ok || !matched_ids.insert(row.id.clone()) {
+            let ordering = match compare(installed, fixed) {
+                Ok(Cmp::Lt) => true,
+                Ok(_) => false,
+                Err(()) => {
+                    uncompared.insert(name.clone());
+                    continue;
+                }
+            };
+            if !ordering {
+                continue;
+            }
+
+            // The feed's "fixed" boundary can be the version shipped when the
+            // record was generated, not the revision that actually applied the
+            // patch. Only claim applicability for same-upstream-version revision
+            // patches, where the installed revision is demonstrably below the
+            // recorded patch revision. Version-bump records are counted as
+            // unverified instead of being presented as matches.
+            let (installed_base, installed_revision) = split_homebrew_version(installed);
+            let (fixed_base, fixed_revision) = split_homebrew_version(fixed);
+            let revision_patch = row.fix_kind.as_deref() == Some("patch")
+                && installed_base == fixed_base
+                && installed_revision < fixed_revision;
+            if !revision_patch {
+                unverified_records += 1;
+                continue;
+            }
+            if !matched_ids.insert(row.id.clone()) {
                 continue;
             }
 
@@ -186,6 +208,7 @@ pub fn report(db: &Db, apps: &[InstalledApp]) -> AppResult<AdvisoryReport> {
     uncompared_packages.sort();
 
     report.uncompared_packages = uncompared_packages;
+    report.unverified_records = unverified_records;
     report.matches = matches;
     Ok(report)
 }
@@ -221,6 +244,7 @@ fn parse_archive(bytes: &[u8]) -> AppResult<(Vec<AdvisoryRow>, u32, u32, u32)> {
             continue;
         }
         if entry.header().size().unwrap_or(0) > MAX_RECORD_BYTES {
+            let _ = std::io::copy(&mut entry, &mut std::io::sink());
             skipped += 1;
             continue;
         }
@@ -232,10 +256,12 @@ fn parse_archive(bytes: &[u8]) -> AppResult<(Vec<AdvisoryRow>, u32, u32, u32)> {
             .read_to_string(&mut text)
             .is_err()
         {
+            let _ = std::io::copy(&mut entry, &mut std::io::sink());
             skipped += 1;
             continue;
         }
         if text.len() as u64 > MAX_RECORD_BYTES {
+            let _ = std::io::copy(&mut entry, &mut std::io::sink());
             skipped += 1;
             continue;
         }
@@ -306,6 +332,11 @@ fn parse_record(text: &str) -> Option<ParsedRecord> {
             .get("name")
             .and_then(|value| value.as_str())?
             .to_string();
+        let fix_kind = affected
+            .get("ecosystem_specific")
+            .and_then(|value| value.get("fix"))
+            .and_then(|value| value.as_str())
+            .map(str::to_string);
         let ranges = affected
             .get("ranges")
             .and_then(|value| value.as_array())
@@ -328,6 +359,7 @@ fn parse_record(text: &str) -> Option<ParsedRecord> {
                         package: name.clone(),
                         introduced: introduced.clone(),
                         fixed: Some(value.to_string()),
+                        fix_kind: fix_kind.clone(),
                         summary: summary.clone(),
                         severity: severity.clone(),
                         aliases: aliases.clone(),
@@ -343,6 +375,7 @@ fn parse_record(text: &str) -> Option<ParsedRecord> {
                     package: name.clone(),
                     introduced: Some(introduced),
                     fixed: None,
+                    fix_kind: fix_kind.clone(),
                     summary: summary.clone(),
                     severity: severity.clone(),
                     aliases: aliases.clone(),
@@ -354,6 +387,15 @@ fn parse_record(text: &str) -> Option<ParsedRecord> {
     }
 
     Some(ParsedRecord { id, rows })
+}
+
+fn split_homebrew_version(version: &str) -> (&str, u32) {
+    match version.rsplit_once('_') {
+        Some((base, revision)) if revision.chars().all(|c| c.is_ascii_digit()) => {
+            (base, revision.parse().unwrap_or(0))
+        }
+        _ => (version, 0),
+    }
 }
 
 fn string_array(value: Option<&serde_json::Value>) -> Vec<String> {
@@ -384,6 +426,7 @@ mod tests {
           "references": [{"type":"WEB","url":"https://example.test/advisory"}],
           "affected": [{
             "package": {"ecosystem":"Homebrew","name":"example"},
+            "ecosystem_specific": {"fix":"patch"},
             "ranges": [{"type":"ECOSYSTEM","events":[{"introduced":"1.0"},{"fixed":"1.2_1"}]}]
           }]
         }"#;
@@ -393,8 +436,16 @@ mod tests {
         assert_eq!(record.rows[0].package, "example");
         assert_eq!(record.rows[0].introduced.as_deref(), Some("1.0"));
         assert_eq!(record.rows[0].fixed.as_deref(), Some("1.2_1"));
+        assert_eq!(record.rows[0].fix_kind.as_deref(), Some("patch"));
         assert_eq!(record.rows[0].aliases, vec!["CVE-2026-1"]);
         assert_eq!(record.rows[0].references.len(), 1);
+    }
+
+    #[test]
+    fn splits_homebrew_revisions() {
+        assert_eq!(split_homebrew_version("1.11.1_3"), ("1.11.1", 3));
+        assert_eq!(split_homebrew_version("2026.1.29"), ("2026.1.29", 0));
+        assert_eq!(split_homebrew_version("1.2.3_beta"), ("1.2.3_beta", 0));
     }
 
     #[test]
@@ -407,8 +458,6 @@ mod tests {
     #[test]
     #[ignore = "downloads the live Homebrew advisory database"]
     fn live_advisory_update_and_report() {
-        use crate::platform::PlatformAudit;
-
         let path =
             std::env::temp_dir().join(format!("cybergates-advisories-{}.db", uuid::Uuid::new_v4()));
         let db = Db::open(&path).expect("open db");
@@ -422,11 +471,12 @@ mod tests {
         assert!(report.available);
         assert_eq!(report.record_count, update.record_count);
         println!(
-            "records={} packages={} checked={} matches={} skipped={}",
+            "records={} packages={} checked={} matches={} unverified={} skipped={}",
             report.record_count,
             report.package_count,
             report.checked_packages,
             report.matches.len(),
+            report.unverified_records,
             report.skipped_packages.len()
         );
         for item in report.matches.iter().take(8) {

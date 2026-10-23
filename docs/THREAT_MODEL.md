@@ -22,8 +22,9 @@ versus planned. It must be updated whenever a new privileged capability is added
    programs and argument arrays; output is untrusted data.
 3. **Backend ↔ local database/files.** Paths are app-controlled; reports are written
    only to the app data directory.
-4. **Backend ↔ external network.** Currently no outbound network calls. Future
-   advisory feeds, reputation checks, AI, and cloud services cross this boundary.
+4. **Backend ↔ external network.** The only outbound call is the user-triggered
+   Homebrew advisory database download over HTTPS. It sends no device data. Future
+   reputation checks, AI, and cloud services would cross this boundary.
 5. **Application ↔ packaged artifacts.** Installers must be signed and verified;
    current builds are unsigned previews.
 
@@ -37,6 +38,7 @@ versus planned. It must be updated whenever a new privileged capability is added
 | Unauthorized IPC / parameter abuse | Data tampering, expensive work | Typed commands, clamped limits, setting allowlist, audit concurrency guard | Implemented |
 | Database corruption / partial audit | Misleading history | WAL, migrations, transactions, interrupted-audit recovery | Implemented |
 | Sensitive data leakage via reports/logs | Privacy harm | Reports warn and are local; logs exclude secrets/content; no telemetry | Partial (reports are sensitive by nature) |
+| Malicious or malformed advisory feed | Memory exhaustion, SQL injection, misleading findings | HTTPS-only fixed URL; 64 MiB download cap; 256 MiB unpacked cap; 2 MiB/record cap; no extraction to disk; parameterized SQL; conservative applicability rules | Implemented |
 | Supply-chain compromise | Full compromise | Lockfiles, pinned major versions, CI, planned `cargo audit`/`npm audit`; dependency review required | Partial |
 | Unsigned updates / installers | Impostor binaries | No updater; builds explicitly labeled unsigned | Planned (signing) |
 | Privilege escalation | System compromise | App runs as the user; no root helper; no privileged writes | Implemented by omission |

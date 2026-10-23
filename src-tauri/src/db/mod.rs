@@ -63,6 +63,7 @@ CREATE TABLE IF NOT EXISTS advisories (
     package         TEXT NOT NULL,
     introduced      TEXT,
     fixed           TEXT,
+    fix_kind        TEXT,
     summary         TEXT NOT NULL,
     severity        TEXT,
     aliases_json    TEXT NOT NULL DEFAULT '[]',
@@ -397,8 +398,8 @@ impl Db {
         {
             let mut stmt = tx.prepare(
                 "INSERT INTO advisories
-                 (id, package, introduced, fixed, summary, severity, aliases_json, references_json, modified)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+                 (id, package, introduced, fixed, fix_kind, summary, severity, aliases_json, references_json, modified)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
             )?;
             for row in rows {
                 stmt.execute(params![
@@ -406,6 +407,7 @@ impl Db {
                     row.package,
                     row.introduced,
                     row.fixed,
+                    row.fix_kind,
                     row.summary,
                     row.severity,
                     serde_json::to_string(&row.aliases)
@@ -450,7 +452,7 @@ impl Db {
         for chunk in packages.chunks(400) {
             let placeholders = vec!["?"; chunk.len()].join(",");
             let sql = format!(
-                "SELECT id, package, introduced, fixed, summary, severity,
+                "SELECT id, package, introduced, fixed, fix_kind, summary, severity,
                         aliases_json, references_json, modified
                  FROM advisories WHERE package IN ({placeholders})"
             );
@@ -461,11 +463,12 @@ impl Db {
                     package: row.get(1)?,
                     introduced: row.get(2)?,
                     fixed: row.get(3)?,
-                    summary: row.get(4)?,
-                    severity: row.get(5)?,
-                    aliases: serde_json::from_str(&row.get::<_, String>(6)?).unwrap_or_default(),
-                    references: serde_json::from_str(&row.get::<_, String>(7)?).unwrap_or_default(),
-                    modified: row.get(8)?,
+                    fix_kind: row.get(4)?,
+                    summary: row.get(5)?,
+                    severity: row.get(6)?,
+                    aliases: serde_json::from_str(&row.get::<_, String>(7)?).unwrap_or_default(),
+                    references: serde_json::from_str(&row.get::<_, String>(8)?).unwrap_or_default(),
+                    modified: row.get(9)?,
                 })
             })?;
             for row in rows {
@@ -529,6 +532,42 @@ mod tests {
         let (db, path) = temp_db();
         let settings = db.get_settings().unwrap();
         assert!(settings.iter().any(|(k, v)| k == "theme" && v == "dark"));
+        assert!(db.advisory_meta().unwrap().is_empty());
+        assert!(db
+            .advisories_for(&["missing".to_string()])
+            .unwrap()
+            .is_empty());
+        drop(db);
+        let _ = std::fs::remove_file(&path);
+        let _ = std::fs::remove_file(path.with_extension("db-wal"));
+        let _ = std::fs::remove_file(path.with_extension("db-shm"));
+    }
+
+    #[test]
+    fn advisory_roundtrip() {
+        let (db, path) = temp_db();
+        let row = AdvisoryRow {
+            id: "BREW-example-CVE-2026-1".to_string(),
+            package: "example".to_string(),
+            introduced: Some("1.0".to_string()),
+            fixed: Some("1.2_1".to_string()),
+            fix_kind: Some("patch".to_string()),
+            summary: "Example".to_string(),
+            severity: Some("CVSS:3.1/AV:N".to_string()),
+            aliases: vec!["CVE-2026-1".to_string()],
+            references: vec!["https://example.test".to_string()],
+            modified: Some("2026-10-20T00:00:00Z".to_string()),
+        };
+        db.replace_advisories(
+            std::slice::from_ref(&row),
+            &[("fetchedAt".to_string(), "now".to_string())],
+        )
+        .unwrap();
+        assert_eq!(db.advisory_meta().unwrap().get("fetchedAt").unwrap(), "now");
+        let rows = db.advisories_for(&["example".to_string()]).unwrap();
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].fix_kind.as_deref(), Some("patch"));
+        assert_eq!(rows[0].aliases, vec!["CVE-2026-1"]);
         drop(db);
         let _ = std::fs::remove_file(&path);
         let _ = std::fs::remove_file(path.with_extension("db-wal"));

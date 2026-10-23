@@ -3,13 +3,16 @@ import {
   AlertTriangle,
   Boxes,
   CheckCircle2,
+  Database,
+  Download,
   PackageSearch,
   RefreshCw,
   Search,
+  ShieldAlert,
   ShieldQuestion,
 } from "lucide-react";
 import { api } from "../../lib/api";
-import type { InstalledApp } from "../../lib/types";
+import type { AdvisoryReport, AdvisoryUpdate, InstalledApp } from "../../lib/types";
 import {
   EmptyState,
   ErrorState,
@@ -19,7 +22,7 @@ import {
   Panel,
   PanelHeader,
 } from "../../components/ui";
-import { formatRelative, titleCase } from "../../lib/format";
+import { formatBytes, formatRelative, titleCase } from "../../lib/format";
 
 function trustLabel(app: InstalledApp): { label: string; tone: string } {
   if (app.source === "Homebrew") return { label: "Homebrew", tone: "text-accent" };
@@ -39,6 +42,12 @@ export function Vulnerabilities() {
   const [query, setQuery] = useState("");
   const [source, setSource] = useState("all");
   const [loadedAt, setLoadedAt] = useState<string | null>(null);
+  const [advisory, setAdvisory] = useState<AdvisoryReport | null>(null);
+  const [advisoryLoading, setAdvisoryLoading] = useState(true);
+  const [advisoryError, setAdvisoryError] = useState<string | null>(null);
+  const [updating, setUpdating] = useState(false);
+  const [checking, setChecking] = useState(false);
+  const [updateInfo, setUpdateInfo] = useState<AdvisoryUpdate | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -53,9 +62,50 @@ export function Vulnerabilities() {
     }
   }, []);
 
+  const loadAdvisory = useCallback(async () => {
+    setAdvisoryLoading(true);
+    setAdvisoryError(null);
+    try {
+      setAdvisory(await api.getAdvisoryReport());
+    } catch (err) {
+      setAdvisoryError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setAdvisoryLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     void load();
-  }, [load]);
+    void loadAdvisory();
+  }, [load, loadAdvisory]);
+
+  const updateDatabase = useCallback(async () => {
+    setUpdating(true);
+    setAdvisoryError(null);
+    setUpdateInfo(null);
+    try {
+      const result = await api.updateAdvisoryDatabase();
+      setUpdateInfo(result);
+      setAdvisory(await api.getAdvisoryReport());
+    } catch (err) {
+      setAdvisoryError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setUpdating(false);
+      setAdvisoryLoading(false);
+    }
+  }, []);
+
+  const checkAdvisories = useCallback(async () => {
+    setChecking(true);
+    setAdvisoryError(null);
+    try {
+      setAdvisory(await api.getAdvisoryReport());
+    } catch (err) {
+      setAdvisoryError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setChecking(false);
+    }
+  }, []);
 
   const sources = useMemo(
     () => Array.from(new Set(apps.map((app) => app.source))).sort(),
@@ -83,7 +133,7 @@ export function Vulnerabilities() {
     <div className="fade-in">
       <PageHeader
         title="Vulnerabilities"
-        subtitle="Installed application and package inventory. Advisory matching is not implemented, so CyberGates makes no claim about whether any item is vulnerable."
+        subtitle="Installed-software inventory and optional Homebrew advisory matching. Coverage is explicit; this is not a complete vulnerability scan."
         actions={
           <button
             type="button"
@@ -101,13 +151,242 @@ export function Vulnerabilities() {
         <div className="flex items-start gap-3">
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warn" aria-hidden />
           <div>
-            <strong className="text-ink">Inventory only — not a vulnerability scan.</strong>{" "}
-            No advisory feed or version-range matching is connected. This list must not be
-            read as "no vulnerabilities". When matching is implemented, every result will
-            show its advisory source and data freshness.
+            <strong className="text-ink">Not a complete vulnerability scan.</strong>{" "}
+            Inventory alone says nothing about vulnerabilities. Homebrew matching uses a
+            downloaded feed with limited coverage; applications are not matched. A result
+            is advisory context, and no result is not proof of safety.
           </div>
         </div>
       </div>
+
+      <Panel className="mb-5">
+        <PanelHeader
+          title="Homebrew advisories"
+          description={
+            advisory?.available
+              ? `${advisory.source} · fetched ${formatRelative(advisory.fetchedAt)}`
+              : "Optional local matching against Homebrew's OSV-format advisory database."
+          }
+          actions={
+            <>
+              <button
+                type="button"
+                className="btn btn-sm"
+                onClick={() => void updateDatabase()}
+                disabled={updating || checking}
+              >
+                <Download className={`h-3.5 w-3.5 ${updating ? "animate-pulse" : ""}`} aria-hidden />
+                {updating ? "Updating…" : "Update database"}
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary btn-sm"
+                onClick={() => void checkAdvisories()}
+                disabled={!advisory?.available || updating || checking}
+              >
+                <ShieldAlert className={`h-3.5 w-3.5 ${checking ? "animate-pulse" : ""}`} aria-hidden />
+                {checking ? "Checking…" : "Check packages"}
+              </button>
+            </>
+          }
+        />
+
+        <div className="border-b border-line px-5 py-4 text-xs leading-relaxed text-muted">
+          <p>
+            <strong className="text-ink">Limited coverage.</strong> This feed covers
+            Homebrew formula CVEs that Homebrew records as resolved by a patch or version
+            bump. Its fixed boundary is the version shipped when the record was generated,
+            not necessarily the exact fixing revision. CyberGates therefore reports only
+            same-version revision-patch cases; version-bump records are counted as not
+            evaluated. Applications and other package managers are not matched.
+          </p>
+          <p className="mt-2 text-faint">
+            Updating downloads about 14 MB from codeload.github.com and sends no device
+            data. Matching runs locally against the downloaded database.
+          </p>
+        </div>
+
+        {advisoryError ? (
+          <ErrorState
+            message={advisoryError}
+            onRetry={() => (advisory?.available ? void checkAdvisories() : void updateDatabase())}
+          />
+        ) : advisoryLoading && !advisory ? (
+          <LoadingState label="Reading advisory database status" />
+        ) : !advisory ? (
+          <EmptyState
+            icon={<Database className="h-5 w-5" aria-hidden />}
+            title="Advisory database unavailable"
+            description="The local advisory status could not be read."
+            action={
+              <button type="button" className="btn btn-sm" onClick={() => void loadAdvisory()}>
+                Try again
+              </button>
+            }
+          />
+        ) : !advisory.available ? (
+          <EmptyState
+            icon={<Database className="h-5 w-5" aria-hidden />}
+            title="Advisory database not downloaded"
+            description="Download Homebrew's advisory database to enable local matching. This is optional and requires network access; the rest of the inventory works offline."
+            action={
+              <button
+                type="button"
+                className="btn btn-primary btn-sm"
+                onClick={() => void updateDatabase()}
+                disabled={updating}
+              >
+                <Download className="h-3.5 w-3.5" aria-hidden />
+                {updating ? "Downloading and indexing…" : "Download advisory database"}
+              </button>
+            }
+          />
+        ) : (
+          <>
+            <div className="grid gap-3 border-b border-line px-5 py-4 sm:grid-cols-4">
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-faint">
+                  Records
+                </p>
+                <p className="mt-1 text-lg font-semibold text-ink">{advisory.recordCount}</p>
+              </div>
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-faint">
+                  Packages indexed
+                </p>
+                <p className="mt-1 text-lg font-semibold text-ink">{advisory.packageCount}</p>
+              </div>
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-faint">
+                  Homebrew packages checked
+                </p>
+                <p className="mt-1 text-lg font-semibold text-ink">{advisory.checkedPackages}</p>
+              </div>
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-faint">
+                  Candidate matches
+                </p>
+                <p className={`mt-1 text-lg font-semibold ${advisory.matches.length > 0 ? "text-warn" : "text-ok"}`}>
+                  {advisory.matches.length}
+                </p>
+              </div>
+            </div>
+
+            {updateInfo ? (
+              <div className="border-b border-ok/20 bg-ok-soft px-5 py-3 text-xs text-muted">
+                Updated to {updateInfo.recordCount} records for {updateInfo.packageCount}{" "}
+                packages ({formatBytes(updateInfo.bytes)} downloaded)
+                {updateInfo.skippedRecords > 0
+                  ? `; ${updateInfo.skippedRecords} unusable records were skipped`
+                  : ""}
+                .
+              </div>
+            ) : null}
+
+            {advisory.matches.length === 0 ? (
+              <EmptyState
+                icon={<CheckCircle2 className="h-5 w-5" aria-hidden />}
+                title="No revision-patch matches found"
+                description="No installed Homebrew package was below a recorded same-version patch revision. This is not proof of safety: the feed is incomplete, version-bump records are not evaluated, and application versions are not matched."
+              />
+            ) : (
+              <>
+                <div className="border-b border-warn/20 bg-warn-soft px-5 py-3 text-xs leading-relaxed text-muted">
+                  <strong className="text-ink">
+                    Candidate matches, not confirmed vulnerabilities.
+                  </strong>{" "}
+                  These are installed revisions below a revision where Homebrew records a
+                  patch. Verify the advisory and the affected range before acting.
+                </div>
+                <div className="max-h-[520px] overflow-auto">
+                <table className="table">
+                  <thead className="sticky top-0 z-10 bg-surface">
+                    <tr>
+                      <th>Package</th>
+                      <th>Installed</th>
+                      <th>Advisory</th>
+                      <th>Summary</th>
+                      <th>Patch at</th>
+                      <th>Severity</th>
+                      <th>Source</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {advisory.matches.map((item) => (
+                      <tr key={`${item.package}-${item.id}`}>
+                        <td className="font-medium">{item.package}</td>
+                        <td className="mono text-xs text-muted">{item.installedVersion}</td>
+                        <td>
+                          <p className="mono text-[11px] text-ink">{item.id}</p>
+                          {item.aliases.length > 0 ? (
+                            <p className="mt-0.5 text-[10px] text-faint">
+                              {item.aliases.join(", ")}
+                            </p>
+                          ) : null}
+                          {item.modified ? (
+                            <p className="mt-0.5 text-[10px] text-faint">
+                              modified {item.modified.slice(0, 10)}
+                            </p>
+                          ) : null}
+                        </td>
+                        <td className="max-w-[24rem] text-xs text-muted">
+                          <span title={item.summary}>{item.summary}</span>
+                        </td>
+                        <td className="mono text-xs text-muted">
+                          {item.fixed ?? "open-ended"}
+                        </td>
+                        <td>
+                          {item.severity ? (
+                            <span
+                              className="chip mono max-w-[10rem] truncate"
+                              title={item.severity}
+                            >
+                              CVSS
+                            </span>
+                          ) : (
+                            <span className="text-xs text-faint">—</span>
+                          )}
+                        </td>
+                        <td className="max-w-[18rem] truncate text-[10px] text-faint">
+                          {item.references[0] ? (
+                            <span className="mono" title={item.references[0]}>
+                              {item.references[0]}
+                            </span>
+                          ) : (
+                            "—"
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                </div>
+              </>
+            )}
+
+            {advisory.unverifiedRecords > 0 ? (
+              <p className="border-t border-line px-5 py-3 text-xs text-muted">
+                {advisory.unverifiedRecords} advisory record
+                {advisory.unverifiedRecords === 1 ? "" : "s"} mention installed packages
+                but were not evaluated because the feed's fixed boundary is not a reliable
+                affected-version rule (typically version bumps). They are not counted as
+                matches.
+              </p>
+            ) : null}
+            {advisory.uncomparedPackages.length > 0 ? (
+              <p className="border-t border-line px-5 py-3 text-xs text-warn">
+                Could not compare versions for: {advisory.uncomparedPackages.join(", ")}. No
+                claim is made for these packages.
+              </p>
+            ) : null}
+            {advisory.skippedPackages.length > 0 ? (
+              <p className="border-t border-line px-5 py-3 text-xs text-muted">
+                Skipped: {advisory.skippedPackages.join("; ")}.
+              </p>
+            ) : null}
+          </>
+        )}
+      </Panel>
 
       <div className="mb-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <KpiCard
@@ -247,8 +526,9 @@ export function Vulnerabilities() {
               vulnerability finding and absence is not proof of safety.
             </p>
             <p>
-              CyberGates does not yet know which versions are affected by which advisories.
-              It will not guess from package names or loose version strings.
+              Homebrew matching is limited to the downloaded Homebrew advisory feed and
+              only runs when you request it. Applications are not matched yet, and
+              CyberGates will not guess from package names or loose version strings.
             </p>
           </div>
         </Panel>

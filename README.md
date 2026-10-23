@@ -6,10 +6,10 @@ time. The desktop shell is Tauri 2, the backend is Rust, and the UI is React +
 TypeScript.
 
 > **Status: early preview (v0.1.0).** Posture auditing, process/connection inventory,
-> installed-software inventory, persisted findings, and JSON/HTML audit reports are
-> real. Malware scanning, vulnerability advisory matching, firewall changes, event
-> monitoring, incident response, AI, and multi-device management are **not
-> implemented**. The UI states this explicitly.
+> installed-software inventory, limited Homebrew advisory matching, persisted findings,
+> and JSON/HTML audit reports are real. Malware scanning, complete vulnerability
+> coverage, firewall changes, event monitoring, incident response, AI, and multi-device
+> management are **not implemented**. The UI states this explicitly.
 
 CyberGates never fabricates scan results, protection status, or scores. Unsupported
 capabilities are shown as unavailable or planned.
@@ -24,6 +24,8 @@ capabilities are shown as unavailable or planned.
 - Live process inventory with executable paths
 - Read-only TCP/UDP connection inventory with owning process where exposed
 - Installed software inventory (macOS applications + Homebrew) with signature/trust data
+- Optional Homebrew advisory matching against a downloaded OSV-format feed, limited to
+  same-version revision patches with explicit freshness and coverage warnings
 - Read-only macOS Application Firewall snapshot with per-app allow/block rules
 - SQLite persistence with migrations, findings history, retention pruning, audit log
 - Sanitized JSON and HTML audit reports
@@ -32,9 +34,9 @@ capabilities are shown as unavailable or planned.
 
 ## Not implemented yet
 
-Malware/file scanning, real-time protection, quarantine, vulnerability advisory
-matching/feeds, firewall rule changes, event monitoring, incident response actions, privacy/app
-permission auditing, backup restore verification, security toolkit, account
+Malware/file scanning, real-time protection, quarantine, complete vulnerability
+coverage (applications, other package managers, reliable ranges), firewall rule
+changes, event monitoring, incident response actions, privacy/app permission auditing, backup restore verification, security toolkit, account
 integrations, AI assistant, and multi-device/cloud features. Windows and Linux
 currently have **no native audit adapter**; they start with an explicit unsupported
 state rather than guessed results.

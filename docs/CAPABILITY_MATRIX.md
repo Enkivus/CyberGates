@@ -30,7 +30,8 @@ Legend: ✅ implemented and tested · 🟡 partial · ⛔ explicitly unavailable
 | Real-time protection | ⬜ | ⬜ | ⬜ |
 | Quarantine / restore | ⬜ | ⬜ | ⬜ |
 | Installed software inventory | ✅ apps + Homebrew | ⛔ | ⛔ |
-| Vulnerability advisory matching | ⬜ | ⬜ | ⬜ |
+| Vulnerability advisory matching | 🟡 Homebrew revision patches | ⛔ | ⛔ |
+| Advisory database update (manual) | ✅ ~14 MB download | ⛔ | ⛔ |
 | Process inventory | ✅ | ⬜ | ⬜ |
 | Event monitoring / timeline | ⬜ | ⬜ | ⬜ |
 | Network connection inventory | ✅ read-only | ⛔ | ⛔ |

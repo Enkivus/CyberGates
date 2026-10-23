@@ -30,8 +30,11 @@ Status is based on code presence **and verification**, not screen existence.
 
 - 🟡 Installed-software inventory on macOS: applications via `system_profiler`,
   Homebrew formulae via `brew list --versions`, searchable with signature/trust data
-- ⬜ Advisory feed, version-range matching, remediation tracking
-- ⛔ No loose name-only vulnerability claims; inventory is not a scan result
+- 🟡 Optional Homebrew advisory matching: downloads Homebrew's OSV-format advisory
+  database (~14 MB), indexes it in SQLite, records fetch time/counts, and matches only
+  same-version revision patches (version-bump boundaries are reported as unverified)
+- ⛔ Applications, other package managers, exploitability, and remediation are not matched
+- ⛔ No loose name-only vulnerability claims; inventory alone is not a scan result
 
 ## 5. Network Security
 
@@ -109,8 +112,9 @@ Status is based on code presence **and verification**, not screen existence.
 
 ## Next implementation priorities
 
-1. Traceable advisory matching with licensed feeds and explicit data freshness
-   (inventory already exists; do not guess version ranges).
+1. Expand advisory coverage beyond Homebrew revision patches with a feed that provides
+   reliable affected-version ranges; never guess applicability from generation-time
+   boundaries.
 2. Malware engine integration behind a trait + quarantine with safety controls.
 3. Security event monitoring and a searchable timeline.
 4. Windows and Linux audit adapters, tested on each platform.

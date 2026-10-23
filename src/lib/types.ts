@@ -143,6 +143,7 @@ export interface AdvisoryReport {
   checkedPackages: number;
   skippedPackages: string[];
   uncomparedPackages: string[];
+  unverifiedRecords: number;
   matches: AdvisoryMatch[];
   scope: string;
 }

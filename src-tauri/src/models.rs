@@ -249,6 +249,7 @@ pub struct AdvisoryRow {
     pub package: String,
     pub introduced: Option<String>,
     pub fixed: Option<String>,
+    pub fix_kind: Option<String>,
     pub summary: String,
     pub severity: Option<String>,
     pub aliases: Vec<String>,
@@ -282,6 +283,7 @@ pub struct AdvisoryReport {
     pub checked_packages: u32,
     pub skipped_packages: Vec<String>,
     pub uncompared_packages: Vec<String>,
+    pub unverified_records: u32,
     pub matches: Vec<AdvisoryMatch>,
     pub scope: String,
 }
