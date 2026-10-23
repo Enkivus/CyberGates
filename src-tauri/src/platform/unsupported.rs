@@ -15,7 +15,8 @@ impl PlatformAudit for UnsupportedAdapter {
     fn notes(&self) -> Vec<String> {
         vec![
             "No native audit adapter is implemented for this operating system yet.".to_string(),
-            "CyberGates reports no security claims on unsupported platforms rather than guessing.".to_string(),
+            "CyberGates reports no security claims on unsupported platforms rather than guessing."
+                .to_string(),
         ]
     }
 

@@ -1,9 +1,7 @@
 use crate::core::scoring::{self, finding_is_open};
 use crate::db::Db;
 use crate::error::AppResult;
-use crate::models::{
-    now_rfc3339, AuditRecord, Dashboard, Finding, ScoreFactor, SystemInfo,
-};
+use crate::models::{now_rfc3339, AuditRecord, Dashboard, Finding, ScoreFactor, SystemInfo};
 use crate::platform::PlatformAudit;
 
 pub fn execute(db: &Db, adapter: &dyn PlatformAudit) -> AppResult<Dashboard> {
@@ -18,10 +16,13 @@ pub fn execute(db: &Db, adapter: &dyn PlatformAudit) -> AppResult<Dashboard> {
     let checks = adapter.audit();
     let breakdown = scoring::evaluate(&checks);
     let findings = scoring::findings_from_checks(&audit.id, &checks);
-    let factors_json = serde_json::to_string(&breakdown.factors).unwrap_or_else(|_| "[]".to_string());
+    let factors_json =
+        serde_json::to_string(&breakdown.factors).unwrap_or_else(|_| "[]".to_string());
 
-    let current_finding_ids: Vec<String> =
-        findings.iter().map(|finding| finding.check_id.clone()).collect();
+    let current_finding_ids: Vec<String> = findings
+        .iter()
+        .map(|finding| finding.check_id.clone())
+        .collect();
 
     let insert_result = db.insert_findings(&findings);
     if let Err(err) = insert_result {

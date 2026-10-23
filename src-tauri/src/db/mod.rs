@@ -6,9 +6,7 @@ use rusqlite::{params, Connection, OptionalExtension, Row};
 use rusqlite_migration::{Migrations, M};
 
 use crate::error::{AppError, AppResult};
-use crate::models::{
-    now_rfc3339, AuditRecord, Finding, Severity,
-};
+use crate::models::{now_rfc3339, AuditRecord, Finding, Severity};
 
 const MIGRATION_SQL: &str = r#"
 CREATE TABLE IF NOT EXISTS audits (
@@ -194,7 +192,11 @@ impl Db {
 
     /// Resolve findings from the previous audit that are no longer reported by
     /// the new audit. Historical rows are kept and marked resolved.
-    pub fn resolve_absent(&self, previous_audit_id: &str, current_check_ids: &[String]) -> AppResult<u32> {
+    pub fn resolve_absent(
+        &self,
+        previous_audit_id: &str,
+        current_check_ids: &[String],
+    ) -> AppResult<u32> {
         let mut conn = self.lock()?;
         let tx = conn.transaction()?;
         let mut resolved = 0u32;
@@ -354,7 +356,9 @@ impl Db {
     pub fn audit_exists(&self, id: &str) -> AppResult<bool> {
         let conn = self.lock()?;
         let exists: Option<i64> = conn
-            .query_row("SELECT 1 FROM audits WHERE id = ?1", params![id], |row| row.get(0))
+            .query_row("SELECT 1 FROM audits WHERE id = ?1", params![id], |row| {
+                row.get(0)
+            })
             .optional()?;
         Ok(exists.is_some())
     }
@@ -402,7 +406,8 @@ mod tests {
     use crate::models::{now_rfc3339, Severity};
 
     fn temp_db() -> (Db, PathBuf) {
-        let path = std::env::temp_dir().join(format!("cybergates-test-{}.db", uuid::Uuid::new_v4()));
+        let path =
+            std::env::temp_dir().join(format!("cybergates-test-{}.db", uuid::Uuid::new_v4()));
         let db = Db::open(&path).expect("open db");
         (db, path)
     }
@@ -439,7 +444,8 @@ mod tests {
             resolved_at: None,
         };
         db.insert_findings(std::slice::from_ref(&finding)).unwrap();
-        db.finish_audit(&audit.id, Some(80), "completed", "[]").unwrap();
+        db.finish_audit(&audit.id, Some(80), "completed", "[]")
+            .unwrap();
         let latest = db.latest_audit().unwrap().unwrap();
         assert_eq!(latest.score, Some(80));
         assert_eq!(latest.findings_count, 1);

@@ -1,9 +1,7 @@
 use std::time::Duration;
 
 use crate::error::AppResult;
-use crate::models::{
-    now_rfc3339, CheckResult, CheckStatus, NetworkConnection, Severity,
-};
+use crate::models::{now_rfc3339, CheckResult, CheckStatus, NetworkConnection, Severity};
 use crate::platform::PlatformAudit;
 use crate::security::process::{run_optional, CommandOutput};
 
@@ -74,6 +72,7 @@ fn out(program: &str, args: &[&str]) -> Option<CommandOutput> {
     run_optional(program, args, TOOL_TIMEOUT)
 }
 
+#[allow(clippy::too_many_arguments)]
 fn make(
     id: &str,
     title: &str,
@@ -163,7 +162,9 @@ fn stealth_mode_check() -> CheckResult {
 }
 
 fn filevault_check() -> CheckResult {
-    let text = out("fdesetup", &["status"]).map(|o| o.combined()).unwrap_or_default();
+    let text = out("fdesetup", &["status"])
+        .map(|o| o.combined())
+        .unwrap_or_default();
     let lower = text.to_lowercase();
     let status = if lower.contains("filevault is on") {
         CheckStatus::Pass
@@ -187,7 +188,9 @@ fn filevault_check() -> CheckResult {
 }
 
 fn sip_check() -> CheckResult {
-    let text = out("csrutil", &["status"]).map(|o| o.combined()).unwrap_or_default();
+    let text = out("csrutil", &["status"])
+        .map(|o| o.combined())
+        .unwrap_or_default();
     let lower = text.to_lowercase();
     let status = if lower.contains("enabled") {
         CheckStatus::Pass
@@ -211,7 +214,9 @@ fn sip_check() -> CheckResult {
 }
 
 fn gatekeeper_check() -> CheckResult {
-    let text = out("spctl", &["--status"]).map(|o| o.combined()).unwrap_or_default();
+    let text = out("spctl", &["--status"])
+        .map(|o| o.combined())
+        .unwrap_or_default();
     let lower = text.to_lowercase();
     let status = if lower.contains("assessments enabled") {
         CheckStatus::Pass
@@ -278,7 +283,7 @@ fn screen_lock_check() -> CheckResult {
         let seconds = lower
             .split("delay is")
             .nth(1)
-            .and_then(|s| s.trim().split_whitespace().next())
+            .and_then(|s| s.split_whitespace().next())
             .and_then(|s| s.parse::<u32>().ok());
         match seconds {
             Some(value) if value <= 300 => CheckStatus::Pass,
@@ -379,7 +384,11 @@ fn screen_sharing_check() -> CheckResult {
 fn guest_account_check() -> CheckResult {
     let output = out(
         "defaults",
-        &["read", "/Library/Preferences/com.apple.loginwindow", "GuestEnabled"],
+        &[
+            "read",
+            "/Library/Preferences/com.apple.loginwindow",
+            "GuestEnabled",
+        ],
     );
     let text = output.as_ref().map(|o| o.combined()).unwrap_or_default();
     let value = text.trim();
@@ -431,7 +440,9 @@ fn backup_check() -> CheckResult {
             "Run 'tmutil destinationinfo'; at least one destination should be listed.",
         );
     }
-    let latest = out("tmutil", &["latestbackup"]).map(|o| o.combined()).unwrap_or_default();
+    let latest = out("tmutil", &["latestbackup"])
+        .map(|o| o.combined())
+        .unwrap_or_default();
     let verified = !latest.is_empty() && !latest.to_lowercase().contains("no backups");
     make(
         "macos.backup",
@@ -456,7 +467,11 @@ fn xprotect_check() -> CheckResult {
         "/Library/Apple/System/Library/CoreServices/XProtect.bundle",
         "/Library/Apple/System/Library/CoreServices/XProtect.app",
     ];
-    let found: Vec<&str> = paths.iter().copied().filter(|p| std::path::Path::new(p).exists()).collect();
+    let found: Vec<&str> = paths
+        .iter()
+        .copied()
+        .filter(|p| std::path::Path::new(p).exists())
+        .collect();
     make(
         "macos.xprotect",
         "Apple XProtect signatures present",
@@ -492,11 +507,12 @@ fn parse_lsof(output: &CommandOutput) -> Vec<NetworkConnection> {
             String::new()
         };
         let address = name.split_whitespace().next().unwrap_or("").to_string();
-        let (local_address, remote_address) = if let Some((local, remote)) = address.split_once("->") {
-            (local.to_string(), remote.to_string())
-        } else {
-            (address, String::new())
-        };
+        let (local_address, remote_address) =
+            if let Some((local, remote)) = address.split_once("->") {
+                (local.to_string(), remote.to_string())
+            } else {
+                (address, String::new())
+            };
         if protocol.is_empty() {
             continue;
         }

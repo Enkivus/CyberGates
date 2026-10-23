@@ -78,11 +78,9 @@ pub async fn get_processes(
     limit: Option<usize>,
 ) -> AppResult<Vec<ProcessInfo>> {
     let _ = state;
-    tauri::async_runtime::spawn_blocking(move || {
-        services::system::processes(limit.unwrap_or(250))
-    })
-    .await
-    .map_err(|err| AppError::Task(err.to_string()))
+    tauri::async_runtime::spawn_blocking(move || services::system::processes(limit.unwrap_or(250)))
+        .await
+        .map_err(|err| AppError::Task(err.to_string()))
 }
 
 #[tauri::command]
@@ -101,12 +99,18 @@ pub fn get_module_statuses() -> AppResult<Vec<ModuleStatus>> {
 }
 
 #[tauri::command]
-pub fn get_open_findings(state: State<'_, AppState>, limit: Option<u32>) -> AppResult<Vec<Finding>> {
+pub fn get_open_findings(
+    state: State<'_, AppState>,
+    limit: Option<u32>,
+) -> AppResult<Vec<Finding>> {
     state.db.list_open_findings(limit.unwrap_or(500))
 }
 
 #[tauri::command]
-pub fn get_audit_history(state: State<'_, AppState>, limit: Option<u32>) -> AppResult<Vec<AuditRecord>> {
+pub fn get_audit_history(
+    state: State<'_, AppState>,
+    limit: Option<u32>,
+) -> AppResult<Vec<AuditRecord>> {
     services::audit::history(&state.db, limit.unwrap_or(50))
 }
 
@@ -188,15 +192,15 @@ pub fn update_setting(
                 value,
             });
         }
-        "aiProvider" => {
-            if value != "none" {
-                return Err(AppError::Validation(
-                    "Only the 'none' AI provider is available; no external provider is configured."
-                        .to_string(),
-                ));
-            }
-        }
+        "aiProvider" => {}
         _ => {}
+    }
+
+    if key == "aiProvider" && value != "none" {
+        return Err(AppError::Validation(
+            "Only the 'none' AI provider is available; no external provider is configured."
+                .to_string(),
+        ));
     }
 
     state.db.set_setting(key, &value)?;

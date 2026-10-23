@@ -133,7 +133,10 @@ mod tests {
 
     #[test]
     fn all_pass_is_100() {
-        let score = evaluate(&[check("a", CheckStatus::Pass, 20), check("b", CheckStatus::Pass, 10)]);
+        let score = evaluate(&[
+            check("a", CheckStatus::Pass, 20),
+            check("b", CheckStatus::Pass, 10),
+        ]);
         assert_eq!(score.score, Some(100));
         assert_eq!(score.earned, 30);
         assert_eq!(score.evaluated, 30);

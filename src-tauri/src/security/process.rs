@@ -35,9 +35,9 @@ pub fn run(program: &str, args: &[&str], timeout: Duration) -> AppResult<Command
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
 
-    let mut child = command.spawn().map_err(|err| {
-        AppError::Internal(format!("could not start {program}: {err}"))
-    })?;
+    let mut child = command
+        .spawn()
+        .map_err(|err| AppError::Internal(format!("could not start {program}: {err}")))?;
 
     let status = match child.wait_timeout(timeout) {
         Ok(Some(status)) => Some(status),
