@@ -8,6 +8,7 @@ use rusqlite_migration::{Migrations, M};
 
 use crate::error::{AppError, AppResult};
 use crate::models::{now_rfc3339, AdvisoryRow, AuditRecord, Finding, Severity};
+use crate::security::filesystem::prepare_private_file;
 
 const MIGRATION_SQL: &str = r#"
 CREATE TABLE IF NOT EXISTS audits (
@@ -92,9 +93,7 @@ pub struct Db {
 
 impl Db {
     pub fn open(path: &Path) -> AppResult<Self> {
-        if let Some(parent) = path.parent() {
-            std::fs::create_dir_all(parent)?;
-        }
+        prepare_private_file(path)?;
         let mut conn = Connection::open(path)?;
         conn.pragma_update(None, "journal_mode", "WAL")?;
         conn.pragma_update(None, "foreign_keys", "ON")?;

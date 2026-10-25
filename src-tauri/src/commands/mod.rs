@@ -249,7 +249,7 @@ pub fn update_setting(
     }
     let value = validate::bounded_text(&value, "setting value", 128)?;
 
-    match key {
+    match key.as_str() {
         "theme" => {
             if !matches!(value.as_str(), "dark" | "light") {
                 return Err(AppError::Validation(
@@ -284,7 +284,7 @@ pub fn update_setting(
                     "retentionDays must be between 1 and 3650".to_string(),
                 ));
             }
-            state.db.set_setting(key, &value)?;
+            state.db.set_setting(&key, &value)?;
             state.db.prune(days)?;
             state
                 .db
@@ -305,7 +305,7 @@ pub fn update_setting(
         ));
     }
 
-    state.db.set_setting(key, &value)?;
+    state.db.set_setting(&key, &value)?;
     state
         .db
         .log_action("settings.update", &format!("{key} updated"), "success")?;

@@ -1,3 +1,5 @@
+use std::fs::OpenOptions;
+use std::io::Write;
 use std::path::{Path, PathBuf};
 
 use serde::Serialize;
@@ -5,6 +7,7 @@ use serde::Serialize;
 use crate::db::Db;
 use crate::error::{AppError, AppResult};
 use crate::models::{now_rfc3339, AuditRecord, Finding, ScoreFactor};
+use crate::security::filesystem::ensure_private_dir;
 use crate::security::validate::html_escape;
 
 #[derive(Serialize)]
@@ -49,9 +52,13 @@ pub fn export(
         .and_then(|json| serde_json::from_str(&json).ok())
         .unwrap_or_default();
 
-    std::fs::create_dir_all(reports_dir)?;
+    ensure_private_dir(reports_dir)?;
     let stamp = now_rfc3339().replace(':', "-");
-    let path: PathBuf = reports_dir.join(format!("cybergates-report-{stamp}.{format}"));
+    let path: PathBuf = reports_dir.join(format!(
+        "cybergates-report-{stamp}-{}.{}",
+        uuid::Uuid::new_v4(),
+        format
+    ));
 
     let warning = "This report may contain sensitive system information (hostnames, paths, accounts, and network details). Review before sharing.";
     let bytes = match format {
@@ -66,12 +73,12 @@ pub fn export(
             };
             let contents = serde_json::to_string_pretty(&report)
                 .map_err(|err| AppError::Internal(err.to_string()))?;
-            std::fs::write(&path, &contents)?;
+            write_private_new(&path, contents.as_bytes())?;
             contents.len() as u64
         }
         "html" => {
             let contents = render_html(&audit, &findings, &factors, warning);
-            std::fs::write(&path, &contents)?;
+            write_private_new(&path, contents.as_bytes())?;
             contents.len() as u64
         }
         _ => unreachable!("format validated above"),
@@ -91,6 +98,20 @@ pub fn export(
         warning: warning.to_string(),
     })
 }
+
+fn write_private_new(path: &Path, contents: &[u8]) -> std::io::Result<()> {
+    let mut options = OpenOptions::new();
+    options.write(true).create_new(true);
+    #[cfg(unix)]
+    options.mode(0o600);
+    let mut file = options.open(path)?;
+    file.write_all(contents)?;
+    file.sync_all()?;
+    Ok(())
+}
+
+#[cfg(unix)]
+use std::os::unix::fs::OpenOptionsExt;
 
 fn render_html(
     audit: &AuditRecord,
@@ -158,4 +179,36 @@ th{{color:#93a4c7;font-weight:600}} .critical{{color:#ff6b81}} .high{{color:#ff9
         rows,
         factor_rows,
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::security::filesystem::ensure_private_dir;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    #[cfg(unix)]
+    #[test]
+    fn exported_files_are_private_and_never_overwrite() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let nonce = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let dir = std::env::temp_dir().join(format!("cybergates-report-test-{nonce}"));
+        ensure_private_dir(&dir).unwrap();
+        let path = dir.join("report.html");
+
+        write_private_new(&path, b"report contents").unwrap();
+        assert_eq!(std::fs::read(&path).unwrap(), b"report contents");
+        assert_eq!(
+            std::fs::metadata(&path).unwrap().permissions().mode() & 0o777,
+            0o600
+        );
+        assert!(write_private_new(&path, b"replacement").is_err());
+        assert_eq!(std::fs::read(&path).unwrap(), b"report contents");
+
+        std::fs::remove_dir_all(dir).unwrap();
+    }
 }

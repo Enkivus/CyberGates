@@ -14,10 +14,11 @@ use tauri::Manager;
 use tracing_subscriber::EnvFilter;
 
 use crate::db::Db;
+use crate::security::filesystem::ensure_private_dir;
 use crate::state::AppState;
 
 fn init_logging(log_dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
-    std::fs::create_dir_all(log_dir)?;
+    ensure_private_dir(log_dir)?;
     let file_appender = tracing_appender::rolling::daily(log_dir, "cybergates.log");
     let (writer, guard) = tracing_appender::non_blocking(file_appender);
     // Keep the writer guard alive for the entire process lifetime.
@@ -39,7 +40,7 @@ pub fn run() {
             let data_dir = app.path().app_data_dir()?;
             let log_dir = app.path().app_log_dir()?;
             init_logging(&log_dir)?;
-            std::fs::create_dir_all(&data_dir)?;
+            ensure_private_dir(&data_dir)?;
 
             let db = Db::open(&data_dir.join("cybergates.db"))?;
             let retention_days = db

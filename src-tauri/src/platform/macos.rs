@@ -195,7 +195,7 @@ impl PlatformAudit for MacOsAdapter {
             vec!["-nP", "-iTCP", "-sTCP:LISTEN"],
             vec!["-nP", "-iUDP"],
         ] {
-            if let Some(output) = run_optional("lsof", &args, Duration::from_secs(8)) {
+            if let Some(output) = run_optional("/usr/sbin/lsof", &args, Duration::from_secs(8)) {
                 connections.extend(parse_lsof(&output));
             }
         }
@@ -331,7 +331,7 @@ fn stealth_mode_check() -> CheckResult {
 }
 
 fn filevault_check() -> CheckResult {
-    let text = out("fdesetup", &["status"])
+    let text = out("/usr/bin/fdesetup", &["status"])
         .map(|o| o.combined())
         .unwrap_or_default();
     let lower = text.to_lowercase();
@@ -357,7 +357,7 @@ fn filevault_check() -> CheckResult {
 }
 
 fn sip_check() -> CheckResult {
-    let text = out("csrutil", &["status"])
+    let text = out("/usr/bin/csrutil", &["status"])
         .map(|o| o.combined())
         .unwrap_or_default();
     let lower = text.to_lowercase();
@@ -383,7 +383,7 @@ fn sip_check() -> CheckResult {
 }
 
 fn gatekeeper_check() -> CheckResult {
-    let text = out("spctl", &["--status"])
+    let text = out("/usr/sbin/spctl", &["--status"])
         .map(|o| o.combined())
         .unwrap_or_default();
     let lower = text.to_lowercase();
@@ -409,7 +409,7 @@ fn gatekeeper_check() -> CheckResult {
 }
 
 fn os_supported_check() -> CheckResult {
-    let info = out("sw_vers", &["-productVersion"])
+    let info = out("/usr/bin/sw_vers", &["-productVersion"])
         .map(|o| o.combined())
         .unwrap_or_default();
     let major = info
@@ -440,7 +440,7 @@ fn os_supported_check() -> CheckResult {
 }
 
 fn screen_lock_check() -> CheckResult {
-    let text = out("sysadminctl", &["-screenLock", "status"])
+    let text = out("/usr/sbin/sysadminctl", &["-screenLock", "status"])
         .map(|o| o.combined())
         .unwrap_or_default();
     let lower = text.to_lowercase();
@@ -477,7 +477,7 @@ fn screen_lock_check() -> CheckResult {
 }
 
 fn auto_updates_check() -> CheckResult {
-    let text = out("softwareupdate", &["--schedule"])
+    let text = out("/usr/sbin/softwareupdate", &["--schedule"])
         .map(|o| o.combined())
         .unwrap_or_default();
     let lower = text.to_lowercase();
@@ -503,10 +503,10 @@ fn auto_updates_check() -> CheckResult {
 }
 
 fn remote_login_check() -> CheckResult {
-    let ssh_loaded = out("launchctl", &["print", "system/com.openssh.sshd"])
+    let ssh_loaded = out("/bin/launchctl", &["print", "system/com.openssh.sshd"])
         .map(|o| o.success)
         .unwrap_or(false);
-    let port_22 = out("lsof", &["-nP", "-iTCP:22", "-sTCP:LISTEN"])
+    let port_22 = out("/usr/sbin/lsof", &["-nP", "-iTCP:22", "-sTCP:LISTEN"])
         .map(|o| o.combined().lines().count() > 1)
         .unwrap_or(false);
     let enabled = ssh_loaded || port_22;
@@ -528,7 +528,7 @@ fn remote_login_check() -> CheckResult {
 }
 
 fn screen_sharing_check() -> CheckResult {
-    let text = out("lsof", &["-nP", "-iTCP:5900", "-sTCP:LISTEN"])
+    let text = out("/usr/sbin/lsof", &["-nP", "-iTCP:5900", "-sTCP:LISTEN"])
         .map(|o| o.combined())
         .unwrap_or_default();
     let listening = text.lines().count() > 1;
@@ -552,7 +552,7 @@ fn screen_sharing_check() -> CheckResult {
 
 fn guest_account_check() -> CheckResult {
     let output = out(
-        "defaults",
+        "/usr/bin/defaults",
         &[
             "read",
             "/Library/Preferences/com.apple.loginwindow",
@@ -587,7 +587,7 @@ fn guest_account_check() -> CheckResult {
 }
 
 fn backup_check() -> CheckResult {
-    let destinations = out("tmutil", &["destinationinfo"])
+    let destinations = out("/usr/bin/tmutil", &["destinationinfo"])
         .map(|o| o.combined())
         .unwrap_or_default();
     let configured = destinations.to_lowercase().contains("name");
@@ -609,7 +609,7 @@ fn backup_check() -> CheckResult {
             "Run 'tmutil destinationinfo'; at least one destination should be listed.",
         );
     }
-    let latest = out("tmutil", &["latestbackup"])
+    let latest = out("/usr/bin/tmutil", &["latestbackup"])
         .map(|o| o.combined())
         .unwrap_or_default();
     let verified = !latest.is_empty() && !latest.to_lowercase().contains("no backups");

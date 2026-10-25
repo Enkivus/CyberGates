@@ -1,4 +1,5 @@
 use std::io::Read;
+use std::path::Path;
 use std::process::{Command, Stdio};
 use std::thread::JoinHandle;
 use std::time::Duration;
@@ -34,6 +35,11 @@ pub fn run_with_limit(
     timeout: Duration,
     max_capture: usize,
 ) -> AppResult<CommandOutput> {
+    if !Path::new(program).is_absolute() {
+        return Err(AppError::Validation(
+            "program path must be absolute".to_string(),
+        ));
+    }
     let mut command = Command::new(program);
     command
         .args(args)
@@ -105,10 +111,6 @@ fn join_reader(handle: Option<JoinHandle<String>>) -> String {
         .unwrap_or_default()
 }
 
-pub fn command_exists(program: &str) -> bool {
-    which::which(program).is_ok()
-}
-
 pub fn run_optional(program: &str, args: &[&str], timeout: Duration) -> Option<CommandOutput> {
     run_optional_with_limit(program, args, timeout, MAX_CAPTURE_BYTES as usize)
 }
@@ -119,7 +121,7 @@ pub fn run_optional_with_limit(
     timeout: Duration,
     max_capture: usize,
 ) -> Option<CommandOutput> {
-    if !command_exists(program) && !program.starts_with('/') {
+    if !Path::new(program).is_absolute() {
         return None;
     }
     run_with_limit(program, args, timeout, max_capture).ok()
@@ -153,5 +155,11 @@ mod tests {
         .expect("head should run");
         assert!(output.success);
         assert_eq!(output.stdout.len(), MAX_CAPTURE_BYTES as usize);
+    }
+
+    #[test]
+    fn rejects_program_lookup_through_path() {
+        assert!(run_with_limit("head", &[], Duration::from_millis(1), 16).is_err());
+        assert!(run_optional("head", &[], Duration::from_millis(1)).is_none());
     }
 }
