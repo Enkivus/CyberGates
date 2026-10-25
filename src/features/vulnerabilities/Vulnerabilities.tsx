@@ -195,10 +195,11 @@ export function Vulnerabilities() {
           <p>
             <strong className="text-ink">Limited coverage.</strong> This feed covers
             Homebrew formula CVEs that Homebrew records as resolved by a patch or version
-            bump. Its fixed boundary is the version shipped when the record was generated,
-            not necessarily the exact fixing revision. CyberGates therefore reports only
-            same-version revision-patch cases; version-bump records are counted as not
-            evaluated. Applications and other package managers are not matched.
+            bump. Homebrew says automatically generated records use the currently shipped
+            version as an approximate boundary, not the exact fixing revision. CyberGates
+            now treats those records as unverified; only non-generated records with a
+            same-version revision patch can appear as candidate matches. Applications and
+            other package managers are not matched.
           </p>
           <p className="mt-2 text-faint">
             Updating downloads about 14 MB from codeload.github.com and sends no device
@@ -286,8 +287,8 @@ export function Vulnerabilities() {
             {advisory.matches.length === 0 ? (
               <EmptyState
                 icon={<CheckCircle2 className="h-5 w-5" aria-hidden />}
-                title="No revision-patch matches found"
-                description="No installed Homebrew package was below a recorded same-version patch revision. This is not proof of safety: the feed is incomplete, version-bump records are not evaluated, and application versions are not matched."
+                title="No reviewed revision-patch matches found"
+                description="No installed Homebrew package matched a non-generated same-version patch boundary. This is not proof of safety: generated records and version-bump records are not evaluated, the feed is incomplete, and application versions are not matched."
               />
             ) : (
               <>
@@ -295,8 +296,8 @@ export function Vulnerabilities() {
                   <strong className="text-ink">
                     Candidate matches, not confirmed vulnerabilities.
                   </strong>{" "}
-                  These are installed revisions below a revision where Homebrew records a
-                  patch. Verify the advisory and the affected range before acting.
+                These are installed revisions below a reviewed patch boundary. Verify the
+                advisory and the affected range before acting.
                 </div>
                 <div className="max-h-[520px] overflow-auto">
                 <table className="table">
@@ -368,9 +369,9 @@ export function Vulnerabilities() {
               <p className="border-t border-line px-5 py-3 text-xs text-muted">
                 {advisory.unverifiedRecords} advisory record
                 {advisory.unverifiedRecords === 1 ? "" : "s"} mention installed packages
-                but were not evaluated because the feed's fixed boundary is not a reliable
-                affected-version rule (typically version bumps). They are not counted as
-                matches.
+                but were not evaluated because the feed does not provide a reviewed fixed
+                boundary (including automatically generated boundaries and version bumps).
+                They are not counted as matches.
               </p>
             ) : null}
             {advisory.uncomparedPackages.length > 0 ? (

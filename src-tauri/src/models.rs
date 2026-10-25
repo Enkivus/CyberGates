@@ -148,6 +148,37 @@ pub struct AuditRecord {
     pub findings_count: u32,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct IncidentRecord {
+    pub id: String,
+    pub title: String,
+    pub severity: Severity,
+    pub status: String,
+    pub created_at: String,
+    pub updated_at: String,
+    pub closed_at: Option<String>,
+    pub evidence_count: u32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct IncidentEvent {
+    pub id: String,
+    pub incident_id: String,
+    pub at: String,
+    pub event_type: String,
+    pub detail: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct IncidentDetail {
+    pub incident: IncidentRecord,
+    pub findings: Vec<Finding>,
+    pub events: Vec<IncidentEvent>,
+}
+
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SeverityCounts {
@@ -215,6 +246,25 @@ pub struct StartupItem {
 pub struct StartupInventory {
     pub available: bool,
     pub items: Vec<StartupItem>,
+    pub fetched_at: String,
+    pub source: String,
+    pub scope_note: String,
+    pub warnings: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LoadedService {
+    pub label: String,
+    pub pid: Option<u32>,
+    pub last_exit_status: Option<i32>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LoadedServiceInventory {
+    pub available: bool,
+    pub services: Vec<LoadedService>,
     pub fetched_at: String,
     pub source: String,
     pub scope_note: String,
@@ -290,6 +340,7 @@ pub struct AdvisoryRow {
     pub introduced: Option<String>,
     pub fixed: Option<String>,
     pub fix_kind: Option<String>,
+    pub boundary_verified: bool,
     pub summary: String,
     pub severity: Option<String>,
     pub aliases: Vec<String>,

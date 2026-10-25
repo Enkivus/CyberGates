@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Cpu, MemoryStick, RefreshCw, Search, Terminal } from "lucide-react";
 import { api } from "../../lib/api";
-import type { ProcessInfo, StartupInventory } from "../../lib/types";
+import type { LoadedServiceInventory, ProcessInfo, StartupInventory } from "../../lib/types";
 import {
   EmptyState,
   ErrorState,
@@ -32,6 +32,10 @@ export function Monitoring() {
   const [startupLoading, setStartupLoading] = useState(true);
   const [startupError, setStartupError] = useState<string | null>(null);
   const [startupQuery, setStartupQuery] = useState("");
+  const [services, setServices] = useState<LoadedServiceInventory | null>(null);
+  const [servicesLoading, setServicesLoading] = useState(true);
+  const [servicesError, setServicesError] = useState<string | null>(null);
+  const [servicesQuery, setServicesQuery] = useState("");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -57,10 +61,23 @@ export function Monitoring() {
     }
   }, []);
 
+  const loadServices = useCallback(async () => {
+    setServicesLoading(true);
+    setServicesError(null);
+    try {
+      setServices(await api.getLoadedServices());
+    } catch (err) {
+      setServicesError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setServicesLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     void load();
     void loadStartup();
-  }, [load, loadStartup]);
+    void loadServices();
+  }, [load, loadStartup, loadServices]);
 
   const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -82,6 +99,17 @@ export function Monitoring() {
     );
   }, [startupInventory, startupQuery]);
 
+  const filteredServices = useMemo(() => {
+    const needle = servicesQuery.trim().toLowerCase();
+    const items = services?.services ?? [];
+    if (!needle) return items;
+    return items.filter((service) =>
+      `${service.label} ${service.pid ?? ""} ${service.lastExitStatus ?? ""}`
+        .toLowerCase()
+        .includes(needle),
+    );
+  }, [services, servicesQuery]);
+
   const topCpu = processes[0];
   const totalMemory = processes.reduce((sum, process) => sum + process.memoryMb, 0);
 
@@ -97,8 +125,9 @@ export function Monitoring() {
             onClick={() => {
               void load();
               void loadStartup();
+              void loadServices();
             }}
-            disabled={loading || startupLoading}
+            disabled={loading || startupLoading || servicesLoading}
           >
             <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} aria-hidden />
             Refresh
@@ -133,8 +162,8 @@ export function Monitoring() {
       <div className="mb-4 rounded-xl border border-warn/30 bg-warn-soft px-4 py-3 text-xs leading-relaxed text-muted">
         <strong className="text-ink">Scope:</strong> CyberGates lists processes and
         executable paths only. It does not monitor security events, terminate processes,
-        or detect behavior yet. Startup inventory lists standard macOS launchd files only;
-        it does not cover all Login Items or prove that a service is running.
+        or detect behavior yet. Startup files and loaded services are separate read-only
+        inventories; only the current user's launchd domain is included.
       </div>
 
       <Panel>
@@ -294,6 +323,72 @@ export function Monitoring() {
             )}
             <p className="border-t border-line px-5 py-2 text-[10px] text-faint">
               {startupInventory.items.length} files listed · refreshed {new Date(startupInventory.fetchedAt).toLocaleTimeString()}
+            </p>
+          </>
+        ) : null}
+      </Panel>
+
+      <Panel className="mt-5">
+        <PanelHeader
+          title="Loaded user services"
+          description={services?.source ?? "Read-only launch service state"}
+          actions={
+            <div className="relative">
+              <Search
+                className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-faint"
+                aria-hidden
+              />
+              <input
+                value={servicesQuery}
+                onChange={(event) => setServicesQuery(event.target.value)}
+                placeholder="Filter service labels"
+                className="input w-56 py-1.5 pl-8 text-xs"
+                aria-label="Filter loaded services"
+              />
+            </div>
+          }
+        />
+        {servicesError ? (
+          <ErrorState message={servicesError} onRetry={() => void loadServices()} />
+        ) : servicesLoading && !services ? (
+          <LoadingState label="Loading loaded services" />
+        ) : services && !services.available ? (
+          <EmptyState title="Loaded service state unavailable" description={services.scopeNote} />
+        ) : services ? (
+          <>
+            <p className="border-b border-line px-5 py-3 text-xs leading-relaxed text-muted">
+              {services.scopeNote}
+            </p>
+            {filteredServices.length === 0 ? (
+              <EmptyState
+                title={services.services.length ? "No matching services" : "No loaded services returned"}
+                description={services.services.length ? "Try another filter." : "The current-user service provider returned an empty list."}
+              />
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="table">
+                  <thead>
+                    <tr><th>Service label</th><th>State</th><th>PID</th><th>Last exit status</th></tr>
+                  </thead>
+                  <tbody>
+                    {filteredServices.map((service) => (
+                      <tr key={service.label}>
+                        <td className="font-medium">{service.label}</td>
+                        <td>
+                          <span className={`chip ${service.pid === null ? "" : "status-pass border-transparent"}`}>
+                            {service.pid === null ? "Registered, idle" : "Running"}
+                          </span>
+                        </td>
+                        <td className="mono text-xs text-faint">{service.pid ?? "—"}</td>
+                        <td className="mono text-xs text-muted">{service.lastExitStatus ?? "Unknown"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+            <p className="border-t border-line px-5 py-2 text-[10px] text-faint">
+              {services.services.length} jobs returned · refreshed {new Date(services.fetchedAt).toLocaleTimeString()}
             </p>
           </>
         ) : null}

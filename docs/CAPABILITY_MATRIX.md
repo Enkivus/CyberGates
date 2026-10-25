@@ -33,6 +33,7 @@ Legend: ✅ implemented and tested · 🟡 partial · ⛔ explicitly unavailable
 | Vulnerability advisory matching | 🟡 Homebrew revision patches | ⛔ | ⛔ |
 | Advisory database update (manual) | ✅ ~14 MB download | ⛔ | ⛔ |
 | Process inventory | ✅ | ⬜ | ⬜ |
+| Loaded service inventory | 🟡 current-user launchd jobs | ⬜ | ⬜ |
 | Event monitoring / timeline | ⬜ | ⬜ | ⬜ |
 | Network connection inventory | ✅ read-only | ⛔ | ⛔ |
 | Network interface address inventory | ✅ read-only | ⛔ | ⛔ |
@@ -41,8 +42,8 @@ Legend: ✅ implemented and tested · 🟡 partial · ⛔ explicitly unavailable
 | Network discovery / port scanning | ⬜ | ⬜ | ⬜ |
 | Privacy / app permission audit | 🟡 core signals | ⛔ | ⛔ |
 | Account security integrations | ⬜ | ⬜ | ⬜ |
-| Incident response workflow | ⬜ | ⬜ | ⬜ |
-| Security toolkit | ⬜ | ⬜ | ⬜ |
+| Incident case tracking | 🟡 local findings + notes | 🟡 local findings + notes | 🟡 local findings + notes |
+| Security toolkit | ⬜ local file hashing not verified on target OS | 🟡 local file hashing | ⬜ local file hashing not verified on target OS |
 | AI assistant | ⬜ | ⬜ | ⬜ |
 | Multi-device management | ⛔ no backend | ⛔ | ⛔ |
 | Persisted findings / history | ✅ | ✅ (no adapter data) | ✅ (no adapter data) |

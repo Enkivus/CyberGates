@@ -4,8 +4,8 @@ use tauri::State;
 use crate::error::{AppError, AppResult};
 use crate::models::{
     AdvisoryReport, AdvisoryUpdate, AuditLogEntry, AuditRecord, Dashboard, Finding,
-    FirewallSnapshot, InstalledApp, ModuleStatus, NetworkConnection, NetworkSnapshot, ProcessInfo,
-    StartupInventory, SystemInfo,
+    FirewallSnapshot, IncidentDetail, IncidentRecord, InstalledApp, LoadedServiceInventory,
+    ModuleStatus, NetworkConnection, NetworkSnapshot, ProcessInfo, StartupInventory, SystemInfo,
 };
 use crate::platform;
 use crate::security::validate;
@@ -142,6 +142,13 @@ pub async fn get_startup_inventory(_state: State<'_, AppState>) -> AppResult<Sta
         .map_err(|err| AppError::Task(err.to_string()))?
 }
 
+#[tauri::command]
+pub async fn get_loaded_services(_state: State<'_, AppState>) -> AppResult<LoadedServiceInventory> {
+    tauri::async_runtime::spawn_blocking(|| platform::adapter().loaded_services())
+        .await
+        .map_err(|err| AppError::Task(err.to_string()))?
+}
+
 struct AdvisoryUpdateGuard(std::sync::Arc<std::sync::atomic::AtomicBool>);
 
 impl Drop for AdvisoryUpdateGuard {
@@ -213,6 +220,96 @@ pub fn get_open_findings(
     limit: Option<u32>,
 ) -> AppResult<Vec<Finding>> {
     state.db.list_open_findings(limit.unwrap_or(500))
+}
+
+#[tauri::command]
+pub fn get_incidents(
+    state: State<'_, AppState>,
+    limit: Option<u32>,
+) -> AppResult<Vec<IncidentRecord>> {
+    state.db.list_incidents(limit.unwrap_or(100))
+}
+
+#[tauri::command]
+pub fn get_incident(state: State<'_, AppState>, incident_id: String) -> AppResult<IncidentDetail> {
+    let incident_id = validate::bounded_text(&incident_id, "incident id", 64)?;
+    state
+        .db
+        .incident_detail(&incident_id)?
+        .ok_or_else(|| AppError::NotFound(format!("incident {incident_id}")))
+}
+
+#[tauri::command]
+pub fn create_incident(
+    state: State<'_, AppState>,
+    finding_id: String,
+) -> AppResult<IncidentRecord> {
+    let finding_id = validate::bounded_text(&finding_id, "finding id", 64)?;
+    let incident = state.db.create_incident_from_finding(&finding_id)?;
+    state.db.log_action(
+        "incident.create",
+        "Incident created from an existing finding",
+        "success",
+    )?;
+    Ok(incident)
+}
+
+#[tauri::command]
+pub fn add_incident_note(
+    state: State<'_, AppState>,
+    incident_id: String,
+    note: String,
+) -> AppResult<()> {
+    let incident_id = validate::bounded_text(&incident_id, "incident id", 64)?;
+    let note = validate::bounded_text(&note, "incident note", 2000)?;
+    if note.len() < 3 {
+        return Err(AppError::Validation(
+            "incident note must be at least 3 characters".to_string(),
+        ));
+    }
+    state.db.add_incident_note(&incident_id, &note)?;
+    state
+        .db
+        .log_action("incident.note", "Incident timeline note added", "success")?;
+    Ok(())
+}
+
+#[tauri::command]
+pub fn set_incident_status(
+    state: State<'_, AppState>,
+    incident_id: String,
+    status: String,
+    note: String,
+) -> AppResult<()> {
+    let incident_id = validate::bounded_text(&incident_id, "incident id", 64)?;
+    let status = validate::bounded_text(&status, "incident status", 32)?;
+    let note = validate::bounded_text(&note, "status update note", 2000)?;
+    if note.len() < 10 {
+        return Err(AppError::Validation(
+            "status changes require an explanatory note of at least 10 characters".to_string(),
+        ));
+    }
+    if !matches!(status.as_str(), "open" | "investigating" | "closed") {
+        return Err(AppError::Validation("invalid incident status".to_string()));
+    }
+    state.db.set_incident_status(&incident_id, &status, &note)?;
+    state.db.log_action(
+        "incident.status",
+        &format!("Incident status changed to {status}"),
+        "success",
+    )?;
+    Ok(())
+}
+
+#[tauri::command]
+pub fn export_incident_report(
+    state: State<'_, AppState>,
+    incident_id: String,
+    format: String,
+) -> AppResult<services::reports::IncidentExport> {
+    let incident_id = validate::bounded_text(&incident_id, "incident id", 64)?;
+    let format = validate::report_format(&format)?;
+    services::reports::export_incident(&state.db, &state.reports_dir, &incident_id, format)
 }
 
 #[tauri::command]

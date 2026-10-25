@@ -18,6 +18,9 @@ versus planned. It must be updated whenever a new privileged capability is added
 
 1. **Webview ↔ Rust backend (IPC).** The UI is untrusted input. Only typed commands
    are exposed; no shell/filesystem plugins.
+   The file-hash utility receives a single file only after explicit picker selection;
+   it processes the content in the webview, caps files at 64 MiB, and sends no file
+   contents or path through IPC.
 2. **Rust backend ↔ operating system.** Native tools and APIs are invoked with fixed
    programs and argument arrays; output is untrusted data.
 3. **Backend ↔ local database/files.** Paths are app-controlled; reports are written
@@ -34,7 +37,7 @@ versus planned. It must be updated whenever a new privileged capability is added
 |---|---|---|---|
 | Command injection via IPC | Arbitrary code execution | No shell plugin; fixed programs + argument arrays; no user-controlled commands | Implemented |
 | Path traversal / symlink abuse | Read/write outside intended paths | Report paths are app-generated; `safe_absolute_path` helper validates future file ops; report format allowlist | Partial (file ops limited) |
-| Malicious/oversized tool output | Memory exhaustion, UI injection | Output capped (512 KiB default, 8 MiB for `system_profiler`); timeouts on every subprocess; React escapes text | Implemented |
+| Malicious/oversized tool output | Memory exhaustion, UI injection | Output capped (512 KiB default, bounded larger inventories); timeouts and Unix process-group cleanup on subprocesses; React escapes text | Implemented |
 | Unauthorized IPC / parameter abuse | Data tampering, expensive work | Typed commands, clamped limits, setting allowlist, audit concurrency guard | Implemented |
 | Database corruption / partial audit | Misleading history | WAL, migrations, transactions, interrupted-audit recovery | Implemented |
 | Sensitive data leakage via reports/logs | Privacy harm | Unix data/log/report directories are mode 0700; SQLite and report files are mode 0600; reports warn and logs exclude secrets/content | Partial (not encrypted at rest; Windows relies on inherited per-user ACLs) |
@@ -45,6 +48,8 @@ versus planned. It must be updated whenever a new privileged capability is added
 | Spoofed security findings / false assurance | User makes bad decisions | Findings require evidence; unavailable checks excluded; UI states limitations | Implemented |
 | Prompt injection via logs/filenames (future AI) | Assistant misbehaves | No AI provider exists; future design treats data as untrusted and actions as separate | Planned |
 | Malicious report/HTML injection | Code execution in exported report | All report fields HTML-escaped; local static file only | Implemented |
+| Malicious selected file | Code execution or memory exhaustion | Selected file is never executed; SHA-256 input is capped at 64 MiB and signature inspection reads only the first 4 KiB; no external request is made | Implemented |
+| Untrusted incident note | UI script injection or misleading response record | Notes are bounded, rendered as escaped text, and status changes require an explanation; user closure is explicitly not represented as verified remediation | Implemented |
 | Quarantine race/symlink attack (future) | File destruction / escape | Not implemented; mandatory design controls documented | Planned |
 | Firewall misconfiguration by app (future) | Loss of connectivity / exposure | Not implemented; no automatic broad changes; undo/audit required | Planned |
 

@@ -5,7 +5,8 @@ use std::time::Duration;
 use crate::error::{AppError, AppResult};
 use crate::models::{
     now_rfc3339, CheckResult, CheckStatus, FirewallRule, FirewallSnapshot, InstalledApp,
-    NetworkConnection, NetworkInterface, NetworkSnapshot, Severity, StartupInventory, StartupItem,
+    LoadedService, LoadedServiceInventory, NetworkConnection, NetworkInterface, NetworkSnapshot,
+    Severity, StartupInventory, StartupItem,
 };
 use crate::platform::PlatformAudit;
 use crate::security::process::{run_optional, run_optional_with_limit, CommandOutput};
@@ -188,6 +189,49 @@ impl PlatformAudit for MacOsAdapter {
         })
     }
 
+    fn loaded_services(&self) -> AppResult<LoadedServiceInventory> {
+        let uid = run_optional("/usr/bin/id", &["-u"], Duration::from_secs(2))
+            .filter(|output| output.success)
+            .map(|output| output.stdout.trim().to_string())
+            .filter(|value| {
+                !value.is_empty() && value.len() <= 10 && value.bytes().all(|b| b.is_ascii_digit())
+            });
+        let Some(uid) = uid else {
+            return Ok(LoadedServiceInventory {
+                available: false,
+                services: Vec::new(),
+                fetched_at: now_rfc3339(),
+                source: "macOS launchctl (current user domain)".to_string(),
+                scope_note: "The current user's service domain could not be identified. System-wide services are not queried.".to_string(),
+                warnings: vec!["The effective user ID could not be read.".to_string()],
+            });
+        };
+        let output = run_optional_with_limit(
+            "/bin/launchctl",
+            &["print", &format!("gui/{uid}")],
+            Duration::from_secs(8),
+            2 * 1024 * 1024,
+        );
+        let Some(output) = output.filter(|output| output.success) else {
+            return Ok(LoadedServiceInventory {
+                available: false,
+                services: Vec::new(),
+                fetched_at: now_rfc3339(),
+                source: "macOS launchctl (current user domain)".to_string(),
+                scope_note: "The current user's launchd service list could not be read. System-wide services are not queried.".to_string(),
+                warnings: vec!["launchctl did not return a readable service list.".to_string()],
+            });
+        };
+        Ok(LoadedServiceInventory {
+            available: true,
+            services: parse_launchctl_services(&output.stdout),
+            fetched_at: now_rfc3339(),
+            source: "macOS launchctl (current user domain)".to_string(),
+            scope_note: "Lists jobs registered in the current user's launchd domain. A positive PID indicates a running process; PID 0 means no process is currently running and does not mean the job is disabled. System-wide daemons and all Login Items are not included.".to_string(),
+            warnings: Vec::new(),
+        })
+    }
+
     fn connections(&self) -> AppResult<Vec<NetworkConnection>> {
         let mut connections = Vec::new();
         for args in [
@@ -314,6 +358,39 @@ fn parse_dns_servers(text: &str) -> Vec<String> {
         }
     }
     servers
+}
+
+fn parse_launchctl_services(text: &str) -> Vec<LoadedService> {
+    let mut services = Vec::new();
+    let mut in_services = false;
+    for line in text.lines().take(20_000) {
+        let trimmed = line.trim();
+        if trimmed == "services = {" {
+            in_services = true;
+            continue;
+        }
+        if in_services && trimmed == "}" {
+            break;
+        }
+        if !in_services {
+            continue;
+        }
+        let fields: Vec<_> = line.split_whitespace().collect();
+        if fields.len() < 3 {
+            continue;
+        }
+        let label = fields[2..].join(" ");
+        if label.is_empty() || label.len() > 256 || label.chars().any(char::is_control) {
+            continue;
+        }
+        services.push(LoadedService {
+            label,
+            pid: fields[0].parse::<u32>().ok().filter(|pid| *pid > 0),
+            last_exit_status: fields[1].parse::<i32>().ok(),
+        });
+    }
+    services.sort_by(|left, right| left.label.cmp(&right.label));
+    services
 }
 
 fn startup_item(path: &Path, scope: &str) -> Option<StartupItem> {
@@ -1079,6 +1156,16 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "reads the current user's macOS launchd service list"]
+    fn live_loaded_services_smoke() {
+        let inventory = MacOsAdapter
+            .loaded_services()
+            .expect("live current-user launchd list");
+        assert!(inventory.available);
+        assert_eq!(inventory.source, "macOS launchctl (current user domain)");
+    }
+
+    #[test]
     fn parses_lsof_lines() {
         let output = CommandOutput {
             success: true,
@@ -1108,5 +1195,25 @@ mod tests {
     fn parses_dns_resolvers_without_duplicates() {
         let servers = parse_dns_servers("resolver #1\n  nameserver[0] : 192.168.1.1\n  nameserver[1] : 1.1.1.1\nresolver #2\n  nameserver[0] : 192.168.1.1\n");
         assert_eq!(servers, ["192.168.1.1", "1.1.1.1"]);
+    }
+
+    #[test]
+    fn parses_loaded_launchd_jobs() {
+        let services = parse_launchctl_services(
+            "gui/501 = {\n environment = {\n X => secret\n }\n services = {\n 42 - com.example.running\n 0 1 com.example.idle\n invalid 0 com.example.badpid\n }\n}",
+        );
+        assert_eq!(services.len(), 3);
+        let running = services
+            .iter()
+            .find(|service| service.label == "com.example.running")
+            .unwrap();
+        assert_eq!(running.pid, Some(42));
+        assert_eq!(running.last_exit_status, None);
+        let idle = services
+            .iter()
+            .find(|service| service.label == "com.example.idle")
+            .unwrap();
+        assert_eq!(idle.pid, None);
+        assert_eq!(idle.last_exit_status, Some(1));
     }
 }

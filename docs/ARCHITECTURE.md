@@ -6,7 +6,9 @@ CyberGates is a Tauri 2 desktop application:
 
 - **Rust backend** (`src-tauri/`) owns all system access, persistence, validation,
   scoring, and report generation.
-- **React + TypeScript UI** (`src/`) renders data and never touches the OS directly.
+- **React + TypeScript UI** (`src/`) renders backend data. The only direct local-file
+  access is a user-selected file through the browser file picker for the bounded hash
+  utility; the webview cannot browse arbitrary paths.
 - **Typed IPC** connects them. The webview receives no filesystem, shell, or process
   plugin permissions (`src-tauri/capabilities/default.json` grants only `core:default`).
 
@@ -28,7 +30,7 @@ CyberGates is a Tauri 2 desktop application:
                                    │ direct process execution, read-only
 ┌──────────────────────────────────▼──────────────────────────────────────────┐
 │ macOS native tools: socketfilterfw, fdesetup, csrutil, spctl, softwareupdate │
-│ sysadminctl, launchctl, lsof, tmutil, defaults · sysinfo for inventory        │
+│ sysadminctl, launchctl, lsof, ifconfig, scutil, tmutil, defaults             │
 │ optional HTTPS download: Homebrew OSV advisory database (user-triggered)      │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
@@ -40,12 +42,12 @@ CyberGates is a Tauri 2 desktop application:
 | `commands` | Tauri command surface. Validates input, clamps limits, delegates. |
 | `services::audit` | Runs an audit, persists it, resolves absent findings, builds dashboard. |
 | `services::system` | Host inventory and process sampling via `sysinfo`. |
-| `services::network` | Delegates read-only connection inventory to the platform adapter. |
+| `services::network` | Read-only connection and network configuration inventory via platform adapter. |
 | `services::advisories` | Downloads/indexes Homebrew's OSV feed; conservative local matching. |
-| `services::reports` | Sanitized JSON/HTML report generation into the app data directory. |
+| `services::reports` | Sanitized JSON/HTML audit and incident report generation into the app data directory. |
 | `services::modules` | Honest per-module capability status shown in the UI. |
 | `core::scoring` | Pure scoring and finding construction; unit-tested. |
-| `platform` | `PlatformAudit` trait; `macos` adapter; `unsupported` fallback. |
+| `platform` | `PlatformAudit` trait; macOS adapter for posture, networking, startup files and current-user launchd jobs; unsupported fallback. |
 | `security::process` | Spawns programs with argument arrays, hard timeout, output cap. |
 | `security::validate` | Input bounds, settings allowlist, report format, path helpers. |
 | `db` | Migrations, audit/finding/settings/log repositories, retention pruning. |
@@ -84,11 +86,12 @@ score, and prevents fabricated "protection" claims.
    replaces the local advisory index in SQLite inside a transaction.
 2. Matching reads installed Homebrew packages and local advisory rows only; it does not
    send inventory to a server.
-3. The feed's fixed boundary can be generation-time, so only same-upstream-version
-   revision patches with `fix=patch` are reported. Version-bump records are counted as
-   unverified and never presented as confirmed vulnerabilities.
+3. Homebrew documents generated records' fixed boundary as the currently shipped version,
+   an approximation rather than the exact fixing version. CyberGates marks generated
+   records unverified. Only non-generated records with same-upstream-version revision
+   patches and `fix=patch` are eligible as candidate matches.
 
-## Database schema (v2)
+## Database schema (v4)
 
 - `audits(id, started_at, finished_at, score, status, platform, factors_json)`
 - `findings(id, audit_id → audits, check_id, title, severity, status, category,
@@ -98,6 +101,12 @@ score, and prevents fabricated "protection" claims.
 - `advisories(id, package, introduced, fixed, fix_kind, summary, severity,
   aliases_json, references_json, modified)` — downloaded feed index
 - `advisory_meta(key, value)` — source, fetched_at, counts, scope
+- `incidents(id, title, severity, status, created_at, updated_at, closed_at)` — local
+  case records created from findings
+- `incident_findings(incident_id, finding_id)` — retained evidence links; links cascade
+  away if the underlying audit finding expires under retention
+- `incident_events(id, incident_id, at, event_type, detail)` — user notes and status
+  changes; no system-changing response action is recorded as executed
 
 Migrations are versioned with `rusqlite_migration`. Foreign keys are enabled and WAL
 mode is on. Retention pruning deletes old audits (findings cascade) and log entries.
@@ -117,6 +126,9 @@ Adding an adapter must not change the UI contract; capability states are data.
 ## IPC and privilege
 
 - No shell, filesystem, HTTP, or opener plugin is exposed to the webview.
+- A user can select one file for the local SHA-256 utility; its content is read only
+  through the browser file input, capped at 64 MiB, and is never sent over IPC or
+  uploaded. The app never executes the selected file.
 - Commands accept typed parameters; IDs, formats, and setting keys are validated.
 - Process execution lives entirely in Rust, uses argument arrays (no shell string
   concatenation), and imposes timeouts/output caps.
@@ -131,12 +143,13 @@ Adding an adapter must not change the UI contract; capability states are data.
 - `components/ui.tsx` — design system primitives (panels, badges, score ring, states).
 - `components/ModulePage.tsx` — honest status layout for unimplemented/partial modules.
 - `features/overview` — dashboard, score explanation, findings, posture checks.
-- `features/monitoring` — process table and detail dialog.
-- `features/network` — read-only connection table and filters.
+- `features/monitoring` — process table, startup files, and current-user launchd jobs.
+- `features/network` — read-only connection, interface, and DNS resolver inventory.
 - `features/firewall` — read-only Application Firewall state and app rules.
 - `features/vulnerabilities` — software inventory and optional Homebrew advisories.
 - `features/reports` — audit history, findings viewer, exports, activity log.
 - `features/settings` — theme, retention, preferences, storage, limitations.
+- `features/toolkit` — bounded local file hashing, metadata, and header-signature inspection.
 - `features/modules` — per-module capability descriptions.
 
 Business logic stays in Rust; the UI formats and presents.

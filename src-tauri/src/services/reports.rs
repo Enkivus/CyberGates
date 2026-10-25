@@ -6,7 +6,7 @@ use serde::Serialize;
 
 use crate::db::Db;
 use crate::error::{AppError, AppResult};
-use crate::models::{now_rfc3339, AuditRecord, Finding, ScoreFactor};
+use crate::models::{now_rfc3339, AuditRecord, Finding, IncidentDetail, ScoreFactor};
 use crate::security::filesystem::ensure_private_dir;
 use crate::security::validate::html_escape;
 
@@ -17,6 +17,16 @@ pub struct ReportExport {
     pub format: String,
     pub bytes: u64,
     pub audit_id: String,
+    pub warning: String,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct IncidentExport {
+    pub path: String,
+    pub format: String,
+    pub bytes: u64,
+    pub incident_id: String,
     pub warning: String,
 }
 
@@ -97,6 +107,99 @@ pub fn export(
         audit_id: audit_id.to_string(),
         warning: warning.to_string(),
     })
+}
+
+pub fn export_incident(
+    db: &Db,
+    reports_dir: &Path,
+    incident_id: &str,
+    format: &str,
+) -> AppResult<IncidentExport> {
+    let format = crate::security::validate::report_format(format)?;
+    let detail = db
+        .incident_detail(incident_id)?
+        .ok_or_else(|| AppError::NotFound(format!("incident {incident_id}")))?;
+    ensure_private_dir(reports_dir)?;
+    let stamp = now_rfc3339().replace(':', "-");
+    let path = reports_dir.join(format!(
+        "cybergates-incident-{stamp}-{}.{}",
+        uuid::Uuid::new_v4(),
+        format
+    ));
+    let warning = "This incident report may contain sensitive findings, hostnames, paths, and user-entered notes. Review before sharing.";
+    let contents = match format {
+        "json" => serde_json::to_string_pretty(&IncidentJsonReport {
+            product: "CyberGates",
+            generated_at: now_rfc3339(),
+            warning,
+            closure_note: "A closed status records the user's decision; CyberGates does not independently verify remediation.",
+            detail: &detail,
+        })
+        .map_err(|err| AppError::Internal(err.to_string()))?,
+        "html" => render_incident_html(&detail, warning),
+        _ => unreachable!("format validated above"),
+    };
+    write_private_new(&path, contents.as_bytes())?;
+    db.log_action(
+        "incident.report.export",
+        &format!("Incident report exported as {format}"),
+        "success",
+    )?;
+    Ok(IncidentExport {
+        path: path.to_string_lossy().to_string(),
+        format: format.to_string(),
+        bytes: contents.len() as u64,
+        incident_id: incident_id.to_string(),
+        warning: warning.to_string(),
+    })
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct IncidentJsonReport<'a> {
+    product: &'a str,
+    generated_at: String,
+    warning: &'a str,
+    closure_note: &'static str,
+    detail: &'a IncidentDetail,
+}
+
+fn render_incident_html(detail: &IncidentDetail, warning: &str) -> String {
+    let evidence = detail
+        .findings
+        .iter()
+        .map(|finding| {
+            format!(
+                "<article><h2>{}</h2><p><b>Severity:</b> {}</p><p>{}</p><pre>{}</pre></article>",
+                html_escape(&finding.title),
+                html_escape(finding.severity.as_str()),
+                html_escape(&finding.explanation),
+                html_escape(&finding.evidence)
+            )
+        })
+        .collect::<String>();
+    let timeline = detail
+        .events
+        .iter()
+        .map(|event| {
+            format!(
+                "<li><time>{}</time> <b>{}</b><p>{}</p></li>",
+                html_escape(&event.at),
+                html_escape(&event.event_type),
+                html_escape(&event.detail)
+            )
+        })
+        .collect::<String>();
+    format!(
+        "<!doctype html><html lang=\"en\"><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>CyberGates incident report</title><style>body{{font:15px system-ui;max-width:900px;margin:2rem auto;padding:0 1rem;color:#172033}}article,li{{border:1px solid #ccd3df;border-radius:8px;padding:1rem;margin:1rem 0}}pre{{white-space:pre-wrap;overflow-wrap:anywhere}}.warning{{color:#8c4a00}}</style><h1>{}</h1><p><b>Status:</b> {} · <b>Severity:</b> {}</p><p>{}</p><h2>Evidence</h2>{}<h2>Timeline</h2><ol>{}</ol><p class=\"warning\">{}</p><p>A closed status records the user's decision; CyberGates does not independently verify remediation.</p></html>",
+        html_escape(&detail.incident.title),
+        html_escape(&detail.incident.status),
+        html_escape(detail.incident.severity.as_str()),
+        html_escape(&detail.incident.created_at),
+        evidence,
+        timeline,
+        html_escape(warning)
+    )
 }
 
 fn write_private_new(path: &Path, contents: &[u8]) -> std::io::Result<()> {
@@ -184,6 +287,7 @@ th{{color:#93a4c7;font-weight:600}} .critical{{color:#ff6b81}} .high{{color:#ff9
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::models::{IncidentEvent, IncidentRecord, Severity};
     use crate::security::filesystem::ensure_private_dir;
     use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -210,5 +314,50 @@ mod tests {
         assert_eq!(std::fs::read(&path).unwrap(), b"report contents");
 
         std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn incident_html_report_escapes_finding_and_timeline_text() {
+        let detail = IncidentDetail {
+            incident: IncidentRecord {
+                id: "incident-id".to_string(),
+                title: "<script>alert(1)</script>".to_string(),
+                severity: Severity::High,
+                status: "closed".to_string(),
+                created_at: now_rfc3339(),
+                updated_at: now_rfc3339(),
+                closed_at: Some(now_rfc3339()),
+                evidence_count: 1,
+            },
+            findings: vec![Finding {
+                id: "finding-id".to_string(),
+                audit_id: "audit-id".to_string(),
+                check_id: "check".to_string(),
+                title: "<img src=x>".to_string(),
+                severity: Severity::High,
+                status: "open".to_string(),
+                category: "test".to_string(),
+                evidence: "<script>".to_string(),
+                explanation: "evidence".to_string(),
+                remediation: "remediation".to_string(),
+                verification: "verify".to_string(),
+                source: "test".to_string(),
+                detected_at: now_rfc3339(),
+                resolved_at: None,
+            }],
+            events: vec![IncidentEvent {
+                id: "event-id".to_string(),
+                incident_id: "incident-id".to_string(),
+                at: now_rfc3339(),
+                event_type: "note".to_string(),
+                detail: "<script>note</script>".to_string(),
+            }],
+        };
+        let html = render_incident_html(&detail, "sensitive report");
+        assert!(html.contains("&lt;script&gt;alert(1)&lt;/script&gt;"));
+        assert!(html.contains("&lt;img src=x&gt;"));
+        assert!(html.contains("&lt;script&gt;note&lt;/script&gt;"));
+        assert!(!html.contains("<script>note</script>"));
+        assert!(html.contains("does not independently verify remediation"));
     }
 }

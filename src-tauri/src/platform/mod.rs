@@ -1,7 +1,7 @@
 use crate::error::AppResult;
 use crate::models::{
-    now_rfc3339, CheckResult, FirewallSnapshot, InstalledApp, NetworkConnection, NetworkSnapshot,
-    StartupInventory,
+    now_rfc3339, CheckResult, FirewallSnapshot, InstalledApp, LoadedServiceInventory,
+    NetworkConnection, NetworkSnapshot, StartupInventory,
 };
 
 pub trait PlatformAudit: Send + Sync {
@@ -42,6 +42,17 @@ pub trait PlatformAudit: Send + Sync {
             fetched_at: now_rfc3339(),
             source: "No native startup-item provider".to_string(),
             scope_note: "Startup-item inspection is unavailable on this platform.".to_string(),
+            warnings: Vec::new(),
+        })
+    }
+
+    fn loaded_services(&self) -> AppResult<LoadedServiceInventory> {
+        Ok(LoadedServiceInventory {
+            available: false,
+            services: Vec::new(),
+            fetched_at: now_rfc3339(),
+            source: "No native service-state provider".to_string(),
+            scope_note: "Loaded service inspection is unavailable on this platform.".to_string(),
             warnings: Vec::new(),
         })
     }

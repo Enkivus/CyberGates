@@ -1,4 +1,9 @@
+import { useState } from "react";
+import { ExternalLink, ShieldCheck } from "lucide-react";
 import { ModulePage } from "../../components/ModulePage";
+import { PageHeader, Panel, PanelHeader } from "../../components/ui";
+import { FileHasher } from "../toolkit/FileHasher";
+import { Incidents } from "../incidents/Incidents";
 
 export function ThreatProtection() {
   return (
@@ -124,70 +129,132 @@ export function Privacy() {
 }
 
 export function AccountSecurity() {
+  const checks = [
+    {
+      id: "unique-passwords",
+      title: "Use unique passwords stored in a password manager",
+      detail: "Prioritize email, financial, and administrator accounts.",
+    },
+    {
+      id: "mfa",
+      title: "Enable multifactor authentication",
+      detail:
+        "Prefer passkeys or security keys where available; use another MFA option if the service does not support them.",
+    },
+    {
+      id: "recovery",
+      title: "Review recovery methods and save recovery codes",
+      detail:
+        "Keep recovery methods current and store codes somewhere separate from the account they recover.",
+    },
+    {
+      id: "sessions",
+      title: "Review signed-in devices and active sessions",
+      detail:
+        "Use the account provider’s security page to sign out sessions or devices you do not recognize.",
+    },
+    {
+      id: "phishing",
+      title: "Treat unexpected sign-in prompts and verification codes carefully",
+      detail:
+        "Do not approve a prompt or share a code you did not request. Open the service directly to investigate.",
+    },
+  ];
+  const [completed, setCompleted] = useState<string[]>([]);
+
   return (
-    <ModulePage
-      moduleId="account"
-      title="Account Security"
-      subtitle="Optional guidance and authorized integrations for account hygiene. No credentials are ever collected."
-      capabilities={[
-        {
-          label: "MFA and account-security checklists",
-          state: "planned",
-          detail: "Guidance content is not built yet.",
-        },
-        {
-          label: "Breached-account notifications",
-          state: "planned",
-          detail:
-            "Requires an authorized provider integration and explicit consent. No breach data is collected today.",
-        },
-        {
-          label: "Suspicious sign-in investigation",
-          state: "planned",
-          detail:
-            "Planned only through supported provider APIs, never by scraping private accounts.",
-        },
-      ]}
-      safety="CyberGates will never ask for your primary account password, store authentication codes, or fabricate breach records. This module is entirely dormant until a legitimate integration is implemented."
-    />
+    <div className="fade-in">
+      <PageHeader
+        title="Account Security"
+        subtitle="A private checklist for reviewing online account protections. CyberGates cannot inspect or verify your accounts."
+      />
+      <Panel className="mb-5">
+        <PanelHeader
+          title="Personal checklist"
+          description={`${completed.length} of ${checks.length} marked for this session`}
+        />
+        <div className="divide-y divide-line">
+          {checks.map((check) => {
+            const checked = completed.includes(check.id);
+            return (
+              <label
+                key={check.id}
+                className="flex cursor-pointer items-start gap-3 px-5 py-4 hover:bg-surface-2"
+              >
+                <input
+                  type="checkbox"
+                  checked={checked}
+                  onChange={() =>
+                    setCompleted((current) =>
+                      checked
+                        ? current.filter((id) => id !== check.id)
+                        : [...current, check.id],
+                    )
+                  }
+                  className="mt-0.5 h-4 w-4 accent-accent"
+                />
+                <span>
+                  <span className="block text-sm font-medium text-ink">{check.title}</span>
+                  <span className="mt-1 block text-xs leading-relaxed text-muted">
+                    {check.detail}
+                  </span>
+                </span>
+              </label>
+            );
+          })}
+        </div>
+        <p className="border-t border-line px-5 py-3 text-xs text-muted">
+          Checklist marks stay in memory for this screen and are cleared when it closes.
+          They are not account findings or verified controls.
+        </p>
+      </Panel>
+
+      <Panel>
+        <PanelHeader title="Trusted guidance" description="Opens the source in your browser." />
+        <div className="grid gap-3 p-5 sm:grid-cols-2">
+          <a
+            className="flex items-start gap-3 rounded-xl border border-line bg-surface-2 p-4 hover:border-accent/40"
+            href="https://www.cisa.gov/secure-our-world"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-accent" aria-hidden />
+            <span className="flex-1">
+              <span className="block text-sm font-medium text-ink">CISA: Secure Our World</span>
+              <span className="mt-1 block text-xs text-muted">
+                Password managers, MFA, and phishing awareness.
+              </span>
+            </span>
+            <ExternalLink className="h-3.5 w-3.5 text-faint" aria-hidden />
+          </a>
+          <a
+            className="flex items-start gap-3 rounded-xl border border-line bg-surface-2 p-4 hover:border-accent/40"
+            href="https://pages.nist.gov/800-63-4/sp800-63b/authenticators/"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-accent" aria-hidden />
+            <span className="flex-1">
+              <span className="block text-sm font-medium text-ink">NIST: Authentication guidance</span>
+              <span className="mt-1 block text-xs text-muted">
+                Current digital identity and phishing-resistance guidance.
+              </span>
+            </span>
+            <ExternalLink className="h-3.5 w-3.5 text-faint" aria-hidden />
+          </a>
+        </div>
+        <p className="border-t border-line px-5 py-3 text-xs text-muted">
+          No credentials, codes, account identifiers, or checklist marks are sent to
+          CyberGates or stored. Provider integrations and breach monitoring are not
+          available.
+        </p>
+      </Panel>
+    </div>
   );
 }
 
 export function IncidentResponse() {
-  return (
-    <ModulePage
-      moduleId="incident-response"
-      title="Incident Response"
-      subtitle="Evidence-based incident timelines and narrowly scoped response actions with verification."
-      capabilities={[
-        {
-          label: "Incident creation from findings",
-          state: "planned",
-          detail:
-            "Findings are currently reviewed in Overview and Reports, but cannot be promoted into an incident.",
-        },
-        {
-          label: "Evidence timeline and correlation",
-          state: "planned",
-          detail:
-            "No event monitor exists yet, so there is no incident timeline to correlate.",
-        },
-        {
-          label: "Response actions",
-          state: "planned",
-          detail:
-            "Process termination, quarantine, reversible configuration changes, network isolation, and diagnostic bundles are not implemented.",
-        },
-        {
-          label: "Verification and closure",
-          state: "planned",
-          detail:
-            "CyberGates will not claim a threat is removed until the relevant verification checks pass.",
-        },
-      ]}
-      safety="Disruptive actions will always require explicit confirmation, a consequence explanation, least-privilege execution, and a record of success or failure. Nothing in this module can change your system today."
-    />
-  );
+  return <Incidents />;
 }
 
 export function Backup() {
@@ -227,44 +294,7 @@ export function Backup() {
 }
 
 export function Toolkit() {
-  return (
-    <ModulePage
-      moduleId="toolkit"
-      title="Security Toolkit"
-      subtitle="Defensive utilities for hashing, inspection, diagnostics, and report generation."
-      capabilities={[
-        {
-          label: "File hashing and metadata",
-          state: "planned",
-          detail:
-            "No hashing UI yet. Cryptographic hashing will use vetted libraries with bounded file reads.",
-        },
-        {
-          label: "Signature and certificate inspection",
-          state: "planned",
-          detail: "Not implemented.",
-        },
-        {
-          label: "DNS, IP/domain, and TLS diagnostics",
-          state: "planned",
-          detail:
-            "Planned with explicit timeouts and clear separation between local facts and external data.",
-        },
-        {
-          label: "Log viewer and decoding utilities",
-          state: "planned",
-          detail: "Not implemented.",
-        },
-        {
-          label: "Safe file analysis",
-          state: "planned",
-          detail:
-            "Will inspect without executing suspicious files. No exploit, credential-theft, or stealth tooling will ever be included.",
-        },
-      ]}
-      safety="Every tool input will be validated and every external request bounded by timeouts and size limits. The toolkit will remain defensive-only."
-    />
-  );
+  return <FileHasher />;
 }
 
 export function Devices() {

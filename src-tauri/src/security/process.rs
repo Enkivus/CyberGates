@@ -1,10 +1,13 @@
 use std::io::Read;
 use std::path::Path;
-use std::process::{Command, Stdio};
+use std::process::{Child, Command, Stdio};
 use std::thread::JoinHandle;
 use std::time::Duration;
 
 use wait_timeout::ChildExt;
+
+#[cfg(unix)]
+use std::os::unix::process::CommandExt;
 
 use crate::error::{AppError, AppResult};
 
@@ -46,6 +49,8 @@ pub fn run_with_limit(
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
+    #[cfg(unix)]
+    command.process_group(0);
 
     let mut child = command
         .spawn()
@@ -59,12 +64,15 @@ pub fn run_with_limit(
     let status = match child.wait_timeout(timeout) {
         Ok(Some(status)) => Some(status),
         Ok(None) => {
-            let _ = child.kill();
+            kill_child_tree(&mut child);
             let _ = child.wait();
             None
         }
         Err(err) => {
-            let _ = child.kill();
+            kill_child_tree(&mut child);
+            let _ = child.wait();
+            let _ = join_reader(stdout_reader);
+            let _ = join_reader(stderr_reader);
             return Err(AppError::Internal(format!(
                 "failed while waiting for {program}: {err}"
             )));
@@ -79,6 +87,17 @@ pub fn run_with_limit(
         stdout,
         stderr,
     })
+}
+
+fn kill_child_tree(child: &mut Child) {
+    #[cfg(unix)]
+    {
+        let process_group = -(child.id() as i32);
+        // The child is placed in a dedicated process group immediately before
+        // spawn. Killing the group also closes pipes inherited by descendants.
+        let _ = unsafe { libc::kill(process_group, libc::SIGKILL) };
+    }
+    let _ = child.kill();
 }
 
 fn spawn_reader<R: Read + Send + 'static>(
@@ -161,5 +180,19 @@ mod tests {
     fn rejects_program_lookup_through_path() {
         assert!(run_with_limit("head", &[], Duration::from_millis(1), 16).is_err());
         assert!(run_optional("head", &[], Duration::from_millis(1)).is_none());
+    }
+
+    #[test]
+    fn timeout_kills_descendants_that_inherit_output_pipes() {
+        let started = std::time::Instant::now();
+        let output = run_with_limit(
+            "/bin/sh",
+            &["-c", "/bin/sleep 30 & wait"],
+            Duration::from_millis(100),
+            128,
+        )
+        .expect("timeout should return a process result");
+        assert!(!output.success);
+        assert!(started.elapsed() < Duration::from_secs(2));
     }
 }

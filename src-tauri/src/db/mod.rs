@@ -7,7 +7,10 @@ use rusqlite::{params, params_from_iter, Connection, OptionalExtension, Row};
 use rusqlite_migration::{Migrations, M};
 
 use crate::error::{AppError, AppResult};
-use crate::models::{now_rfc3339, AdvisoryRow, AuditRecord, Finding, Severity};
+use crate::models::{
+    now_rfc3339, AdvisoryRow, AuditRecord, Finding, IncidentDetail, IncidentEvent, IncidentRecord,
+    Severity,
+};
 use crate::security::filesystem::prepare_private_file;
 
 const MIGRATION_SQL: &str = r#"
@@ -81,8 +84,46 @@ CREATE TABLE IF NOT EXISTS advisory_meta (
 );
 "#;
 
+const MIGRATION_V3_SQL: &str = r#"
+CREATE TABLE IF NOT EXISTS incidents (
+    id         TEXT PRIMARY KEY,
+    title      TEXT NOT NULL,
+    severity   TEXT NOT NULL,
+    status     TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    closed_at  TEXT
+);
+
+CREATE TABLE IF NOT EXISTS incident_findings (
+    incident_id TEXT NOT NULL REFERENCES incidents(id) ON DELETE CASCADE,
+    finding_id  TEXT NOT NULL REFERENCES findings(id) ON DELETE CASCADE,
+    PRIMARY KEY (incident_id, finding_id)
+);
+
+CREATE TABLE IF NOT EXISTS incident_events (
+    id          TEXT PRIMARY KEY,
+    incident_id TEXT NOT NULL REFERENCES incidents(id) ON DELETE CASCADE,
+    at          TEXT NOT NULL,
+    event_type  TEXT NOT NULL,
+    detail      TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_incidents_updated ON incidents(updated_at DESC);
+CREATE INDEX IF NOT EXISTS idx_incident_events_at ON incident_events(incident_id, at DESC);
+"#;
+
+const MIGRATION_V4_SQL: &str = r#"
+ALTER TABLE advisories ADD COLUMN boundary_verified INTEGER NOT NULL DEFAULT 0;
+"#;
+
 fn migrations() -> Migrations<'static> {
-    Migrations::new(vec![M::up(MIGRATION_SQL), M::up(MIGRATION_V2_SQL)])
+    Migrations::new(vec![
+        M::up(MIGRATION_SQL),
+        M::up(MIGRATION_V2_SQL),
+        M::up(MIGRATION_V3_SQL),
+        M::up(MIGRATION_V4_SQL),
+    ])
 }
 
 #[derive(Clone)]
@@ -286,6 +327,169 @@ impl Db {
         rows.collect::<Result<Vec<_>, _>>().map_err(AppError::from)
     }
 
+    pub fn create_incident_from_finding(&self, finding_id: &str) -> AppResult<IncidentRecord> {
+        let mut conn = self.lock()?;
+        let tx = conn.transaction()?;
+        let finding = tx
+            .query_row(
+                "SELECT id, audit_id, check_id, title, severity, status, category, evidence,
+                        explanation, remediation, verification, source, detected_at, resolved_at
+                 FROM findings WHERE id = ?1",
+                params![finding_id],
+                map_finding,
+            )
+            .optional()?
+            .ok_or_else(|| AppError::Validation("finding does not exist".to_string()))?;
+
+        let id = uuid::Uuid::new_v4().to_string();
+        let now = now_rfc3339();
+        tx.execute(
+            "INSERT INTO incidents (id, title, severity, status, created_at, updated_at)
+             VALUES (?1, ?2, ?3, 'open', ?4, ?4)",
+            params![id, finding.title, finding.severity.as_str(), now],
+        )?;
+        tx.execute(
+            "INSERT INTO incident_findings (incident_id, finding_id) VALUES (?1, ?2)",
+            params![id, finding.id],
+        )?;
+        insert_incident_event(
+            &tx,
+            &id,
+            "created",
+            "Incident created from an existing security finding.",
+        )?;
+        tx.commit()?;
+        Ok(IncidentRecord {
+            id,
+            title: finding.title,
+            severity: finding.severity,
+            status: "open".to_string(),
+            created_at: now.clone(),
+            updated_at: now,
+            closed_at: None,
+            evidence_count: 1,
+        })
+    }
+
+    pub fn list_incidents(&self, limit: u32) -> AppResult<Vec<IncidentRecord>> {
+        let conn = self.lock()?;
+        let mut stmt = conn.prepare(
+            "SELECT i.id, i.title, i.severity, i.status, i.created_at, i.updated_at, i.closed_at,
+                    (SELECT COUNT(*) FROM incident_findings f WHERE f.incident_id = i.id)
+             FROM incidents i ORDER BY i.updated_at DESC LIMIT ?1",
+        )?;
+        let rows = stmt.query_map(params![limit.clamp(1, 500)], map_incident)?;
+        rows.collect::<Result<Vec<_>, _>>().map_err(AppError::from)
+    }
+
+    pub fn incident_detail(&self, incident_id: &str) -> AppResult<Option<IncidentDetail>> {
+        let conn = self.lock()?;
+        let incident = conn
+            .query_row(
+                "SELECT i.id, i.title, i.severity, i.status, i.created_at, i.updated_at, i.closed_at,
+                        (SELECT COUNT(*) FROM incident_findings f WHERE f.incident_id = i.id)
+                 FROM incidents i WHERE i.id = ?1",
+                params![incident_id],
+                map_incident,
+            )
+            .optional()?;
+        let Some(incident) = incident else {
+            return Ok(None);
+        };
+        let findings = {
+            let mut stmt = conn.prepare(
+                "SELECT f.id, f.audit_id, f.check_id, f.title, f.severity, f.status, f.category,
+                        f.evidence, f.explanation, f.remediation, f.verification, f.source,
+                        f.detected_at, f.resolved_at
+                 FROM findings f JOIN incident_findings x ON x.finding_id = f.id
+                 WHERE x.incident_id = ?1 ORDER BY f.detected_at DESC",
+            )?;
+            let rows = stmt.query_map(params![incident_id], map_finding)?;
+            rows.collect::<Result<Vec<_>, _>>()?
+        };
+        let events = {
+            let mut stmt = conn.prepare(
+                "SELECT id, incident_id, at, event_type, detail FROM incident_events
+                 WHERE incident_id = ?1 ORDER BY rowid DESC",
+            )?;
+            let rows = stmt.query_map(params![incident_id], |row| {
+                Ok(IncidentEvent {
+                    id: row.get(0)?,
+                    incident_id: row.get(1)?,
+                    at: row.get(2)?,
+                    event_type: row.get(3)?,
+                    detail: row.get(4)?,
+                })
+            })?;
+            rows.collect::<Result<Vec<_>, _>>()?
+        };
+        Ok(Some(IncidentDetail {
+            incident,
+            findings,
+            events,
+        }))
+    }
+
+    pub fn add_incident_note(&self, incident_id: &str, note: &str) -> AppResult<()> {
+        let mut conn = self.lock()?;
+        let tx = conn.transaction()?;
+        let status: Option<String> = tx
+            .query_row(
+                "SELECT status FROM incidents WHERE id = ?1",
+                params![incident_id],
+                |row| row.get(0),
+            )
+            .optional()?;
+        let Some(status) = status else {
+            return Err(AppError::Validation("incident does not exist".to_string()));
+        };
+        if status == "closed" {
+            return Err(AppError::Validation(
+                "reopen the incident before adding a timeline note".to_string(),
+            ));
+        }
+        let now = now_rfc3339();
+        insert_incident_event(&tx, incident_id, "note", note)?;
+        tx.execute(
+            "UPDATE incidents SET updated_at = ?1 WHERE id = ?2",
+            params![now, incident_id],
+        )?;
+        tx.commit()?;
+        Ok(())
+    }
+
+    pub fn set_incident_status(
+        &self,
+        incident_id: &str,
+        status: &str,
+        note: &str,
+    ) -> AppResult<()> {
+        if !matches!(status, "open" | "investigating" | "closed") {
+            return Err(AppError::Validation("invalid incident status".to_string()));
+        }
+        let mut conn = self.lock()?;
+        let tx = conn.transaction()?;
+        let exists: Option<String> = tx
+            .query_row(
+                "SELECT id FROM incidents WHERE id = ?1",
+                params![incident_id],
+                |row| row.get(0),
+            )
+            .optional()?;
+        if exists.is_none() {
+            return Err(AppError::Validation("incident does not exist".to_string()));
+        }
+        let now = now_rfc3339();
+        let closed_at = (status == "closed").then_some(now.as_str());
+        tx.execute(
+            "UPDATE incidents SET status = ?1, updated_at = ?2, closed_at = ?3 WHERE id = ?4",
+            params![status, now, closed_at, incident_id],
+        )?;
+        insert_incident_event(&tx, incident_id, "status", note)?;
+        tx.commit()?;
+        Ok(())
+    }
+
     pub fn list_open_findings(&self, limit: u32) -> AppResult<Vec<Finding>> {
         let conn = self.lock()?;
         let mut stmt = conn.prepare(
@@ -397,8 +601,8 @@ impl Db {
         {
             let mut stmt = tx.prepare(
                 "INSERT INTO advisories
-                 (id, package, introduced, fixed, fix_kind, summary, severity, aliases_json, references_json, modified)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+                 (id, package, introduced, fixed, fix_kind, summary, severity, aliases_json, references_json, modified, boundary_verified)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
             )?;
             for row in rows {
                 stmt.execute(params![
@@ -414,6 +618,7 @@ impl Db {
                     serde_json::to_string(&row.references)
                         .map_err(|err| AppError::Internal(err.to_string()))?,
                     row.modified,
+                    row.boundary_verified,
                 ])?;
             }
         }
@@ -452,7 +657,7 @@ impl Db {
             let placeholders = vec!["?"; chunk.len()].join(",");
             let sql = format!(
                 "SELECT id, package, introduced, fixed, fix_kind, summary, severity,
-                        aliases_json, references_json, modified
+                        aliases_json, references_json, modified, boundary_verified
                  FROM advisories WHERE package IN ({placeholders})"
             );
             let mut stmt = conn.prepare(&sql)?;
@@ -468,6 +673,7 @@ impl Db {
                     aliases: serde_json::from_str(&row.get::<_, String>(7)?).unwrap_or_default(),
                     references: serde_json::from_str(&row.get::<_, String>(8)?).unwrap_or_default(),
                     modified: row.get(9)?,
+                    boundary_verified: row.get::<_, i64>(10)? != 0,
                 })
             })?;
             for row in rows {
@@ -514,6 +720,40 @@ fn map_finding(row: &Row<'_>) -> rusqlite::Result<Finding> {
     })
 }
 
+fn map_incident(row: &Row<'_>) -> rusqlite::Result<IncidentRecord> {
+    let severity: String = row.get(2)?;
+    Ok(IncidentRecord {
+        id: row.get(0)?,
+        title: row.get(1)?,
+        severity: Severity::parse(&severity),
+        status: row.get(3)?,
+        created_at: row.get(4)?,
+        updated_at: row.get(5)?,
+        closed_at: row.get(6)?,
+        evidence_count: row.get::<_, i64>(7)?.clamp(0, u32::MAX as i64) as u32,
+    })
+}
+
+fn insert_incident_event(
+    conn: &Connection,
+    incident_id: &str,
+    event_type: &str,
+    detail: &str,
+) -> AppResult<()> {
+    conn.execute(
+        "INSERT INTO incident_events (id, incident_id, at, event_type, detail)
+         VALUES (?1, ?2, ?3, ?4, ?5)",
+        params![
+            uuid::Uuid::new_v4().to_string(),
+            incident_id,
+            now_rfc3339(),
+            event_type,
+            detail
+        ],
+    )?;
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -551,6 +791,7 @@ mod tests {
             introduced: Some("1.0".to_string()),
             fixed: Some("1.2_1".to_string()),
             fix_kind: Some("patch".to_string()),
+            boundary_verified: true,
             summary: "Example".to_string(),
             severity: Some("CVSS:3.1/AV:N".to_string()),
             aliases: vec!["CVE-2026-1".to_string()],
@@ -636,5 +877,63 @@ mod tests {
         let _ = second;
         drop(db);
         let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn incident_persists_evidence_timeline_and_status() {
+        let (db, path) = temp_db();
+        let audit = db.start_audit("macos").unwrap();
+        let finding = Finding {
+            id: uuid::Uuid::new_v4().to_string(),
+            audit_id: audit.id.clone(),
+            check_id: "firewall".to_string(),
+            title: "Firewall disabled".to_string(),
+            severity: Severity::High,
+            status: "open".to_string(),
+            category: "firewall".to_string(),
+            evidence: "state=0".to_string(),
+            explanation: "explanation".to_string(),
+            remediation: "enable".to_string(),
+            verification: "re-check".to_string(),
+            source: "test".to_string(),
+            detected_at: now_rfc3339(),
+            resolved_at: None,
+        };
+        db.insert_findings(std::slice::from_ref(&finding)).unwrap();
+
+        let incident = db.create_incident_from_finding(&finding.id).unwrap();
+        assert_eq!(incident.status, "open");
+        assert_eq!(incident.evidence_count, 1);
+        db.add_incident_note(&incident.id, "Reviewed the firewall finding.")
+            .unwrap();
+        db.set_incident_status(
+            &incident.id,
+            "investigating",
+            "Investigation started after reviewing the finding.",
+        )
+        .unwrap();
+        let detail = db.incident_detail(&incident.id).unwrap().unwrap();
+        assert_eq!(detail.findings.len(), 1);
+        assert_eq!(detail.events.len(), 3);
+        assert_eq!(detail.incident.status, "investigating");
+        assert_eq!(db.list_incidents(10).unwrap().len(), 1);
+
+        db.set_incident_status(&incident.id, "closed", "Closed by user after review.")
+            .unwrap();
+        assert!(db
+            .incident_detail(&incident.id)
+            .unwrap()
+            .unwrap()
+            .incident
+            .closed_at
+            .is_some());
+        assert!(db
+            .add_incident_note(&incident.id, "This should fail while closed")
+            .is_err());
+
+        drop(db);
+        let _ = std::fs::remove_file(&path);
+        let _ = std::fs::remove_file(path.with_extension("db-wal"));
+        let _ = std::fs::remove_file(path.with_extension("db-shm"));
     }
 }

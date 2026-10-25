@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
   Download,
@@ -14,6 +14,7 @@ import type {
   Finding,
   ReportExport,
 } from "../../lib/types";
+import type { Severity } from "../../lib/types";
 import {
   EmptyState,
   ErrorState,
@@ -29,6 +30,7 @@ import {
   formatRelative,
   titleCase,
 } from "../../lib/format";
+import { filterFindings } from "./findingFilters";
 
 export function Reports() {
   const [audits, setAudits] = useState<AuditRecord[]>([]);
@@ -39,6 +41,9 @@ export function Reports() {
   const [error, setError] = useState<string | null>(null);
   const [exporting, setExporting] = useState<string | null>(null);
   const [exported, setExported] = useState<ReportExport | null>(null);
+  const [severityFilter, setSeverityFilter] = useState<Severity | "all">("all");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -83,6 +88,11 @@ export function Reports() {
       setExporting(null);
     }
   };
+
+  const filteredFindings = useMemo(() => {
+    if (!findings) return [];
+    return filterFindings(findings, severityFilter, dateFrom, dateTo);
+  }, [findings, severityFilter, dateFrom, dateTo]);
 
   return (
     <div className="fade-in">
@@ -219,27 +229,53 @@ export function Reports() {
             title="Audit findings"
             description="Findings recorded for the selected audit, including resolved entries from earlier reports."
             actions={
-              <button
-                type="button"
-                className="btn btn-sm"
-                onClick={() => {
-                  setSelectedAudit(null);
-                  setFindings(null);
-                }}
-              >
-                Close
-              </button>
+              <div className="flex flex-wrap items-center justify-end gap-2">
+                <select
+                  className="select w-32 py-1.5 text-xs"
+                  value={severityFilter}
+                  onChange={(event) => setSeverityFilter(event.target.value as Severity | "all")}
+                  aria-label="Filter findings by severity"
+                >
+                  <option value="all">All severities</option>
+                  <option value="critical">Critical</option>
+                  <option value="high">High</option>
+                  <option value="medium">Medium</option>
+                  <option value="low">Low</option>
+                  <option value="info">Info</option>
+                </select>
+                <label className="flex items-center gap-1 text-[10px] text-muted">
+                  From
+                  <input className="input w-32 py-1.5 text-xs" type="date" value={dateFrom} onChange={(event) => setDateFrom(event.target.value)} aria-label="Filter findings from date" />
+                </label>
+                <label className="flex items-center gap-1 text-[10px] text-muted">
+                  To
+                  <input className="input w-32 py-1.5 text-xs" type="date" value={dateTo} onChange={(event) => setDateTo(event.target.value)} aria-label="Filter findings through date" />
+                </label>
+                <button
+                  type="button"
+                  className="btn btn-sm"
+                  onClick={() => {
+                    setSelectedAudit(null);
+                    setFindings(null);
+                  }}
+                >
+                  Close
+                </button>
+              </div>
             }
           />
           {findings === null ? (
             <LoadingState label="Loading findings" />
-          ) : findings.length === 0 ? (
+          ) : filteredFindings.length === 0 ? (
             <EmptyState
-              title="No findings in this audit"
-              description="The implemented checks reported no warnings or failures."
+              title={findings.length === 0 ? "No findings in this audit" : "No findings match these filters"}
+              description={findings.length === 0 ? "The implemented checks reported no warnings or failures." : "Adjust the severity or date range to see other findings."}
             />
           ) : (
             <div className="overflow-x-auto">
+              <p className="border-b border-line px-5 py-2 text-[10px] text-faint">
+                Showing {filteredFindings.length} of {findings.length} findings
+              </p>
               <table className="table">
                 <thead>
                   <tr>
@@ -251,7 +287,7 @@ export function Reports() {
                   </tr>
                 </thead>
                 <tbody>
-                  {findings.map((finding) => (
+                  {filteredFindings.map((finding) => (
                     <tr key={finding.id}>
                       <td>
                         <SeverityBadge severity={finding.severity} />

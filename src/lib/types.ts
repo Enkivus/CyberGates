@@ -51,6 +51,41 @@ export interface AuditRecord {
   findingsCount: number;
 }
 
+export type IncidentStatus = "open" | "investigating" | "closed";
+
+export interface IncidentRecord {
+  id: string;
+  title: string;
+  severity: Severity;
+  status: IncidentStatus;
+  createdAt: string;
+  updatedAt: string;
+  closedAt: string | null;
+  evidenceCount: number;
+}
+
+export interface IncidentEvent {
+  id: string;
+  incidentId: string;
+  at: string;
+  eventType: string;
+  detail: string;
+}
+
+export interface IncidentDetail {
+  incident: IncidentRecord;
+  findings: Finding[];
+  events: IncidentEvent[];
+}
+
+export interface IncidentExport {
+  path: string;
+  format: "json" | "html";
+  bytes: number;
+  incidentId: string;
+  warning: string;
+}
+
 export interface SeverityCounts {
   critical: number;
   high: number;
@@ -106,6 +141,21 @@ export interface StartupItem {
 export interface StartupInventory {
   available: boolean;
   items: StartupItem[];
+  fetchedAt: string;
+  source: string;
+  scopeNote: string;
+  warnings: string[];
+}
+
+export interface LoadedService {
+  label: string;
+  pid: number | null;
+  lastExitStatus: number | null;
+}
+
+export interface LoadedServiceInventory {
+  available: boolean;
+  services: LoadedService[];
   fetchedAt: string;
   source: string;
   scopeNote: string;

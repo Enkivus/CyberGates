@@ -8,7 +8,11 @@ import type {
   Finding,
   FirewallSnapshot,
   InstalledApp,
+  IncidentDetail,
+  IncidentExport,
+  IncidentRecord,
   ModuleStatus,
+  LoadedServiceInventory,
   NetworkConnection,
   NetworkSnapshot,
   ProcessInfo,
@@ -48,6 +52,7 @@ export const api = {
   getSystemInfo: () => call<SystemInfo>("get_system_info"),
   getProcesses: (limit = 250) => call<ProcessInfo[]>("get_processes", { limit }),
   getStartupInventory: () => call<StartupInventory>("get_startup_inventory"),
+  getLoadedServices: () => call<LoadedServiceInventory>("get_loaded_services"),
   getNetworkConnections: () =>
     call<NetworkConnection[]>("get_network_connections"),
   getNetworkSnapshot: () => call<NetworkSnapshot>("get_network_snapshot"),
@@ -58,6 +63,15 @@ export const api = {
   getModuleStatuses: () => call<ModuleStatus[]>("get_module_statuses"),
   getOpenFindings: (limit = 500) =>
     call<Finding[]>("get_open_findings", { limit }),
+  getIncidents: (limit = 100) => call<IncidentRecord[]>("get_incidents", { limit }),
+  getIncident: (incidentId: string) => call<IncidentDetail>("get_incident", { incidentId }),
+  createIncident: (findingId: string) => call<IncidentRecord>("create_incident", { findingId }),
+  addIncidentNote: (incidentId: string, note: string) =>
+    call<void>("add_incident_note", { incidentId, note }),
+  setIncidentStatus: (incidentId: string, status: string, note: string) =>
+    call<void>("set_incident_status", { incidentId, status, note }),
+  exportIncidentReport: (incidentId: string, format: "json" | "html") =>
+    call<IncidentExport>("export_incident_report", { incidentId, format }),
   getAuditHistory: (limit = 50) =>
     call<AuditRecord[]>("get_audit_history", { limit }),
   getAuditFindings: (auditId: string) =>

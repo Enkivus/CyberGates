@@ -13,16 +13,26 @@ Tauri 2, Rust, React, and TypeScript.
 - Explainable macOS posture audit for firewall state, FileVault, SIP, Gatekeeper,
   supported OS version, screen lock, automatic updates, remote access, guest account,
   backup metadata, and XProtect presence.
-- System and process inventory, launchd startup-file inventory, and read-only TCP/UDP
-  socket inventory.
+- System and process inventory, macOS launchd startup-file and current-user loaded-job
+  inventories, and read-only TCP/UDP socket inventory.
 - Read-only network interface and configured DNS resolver inventory on macOS. Resolver
   addresses are shown as configured; CyberGates does not rate their trustworthiness.
 - Installed application and Homebrew inventory, plus optional Homebrew advisory
-  matching. Matching is intentionally limited and does not cover all applications or
-  package managers.
+  matching. Automatically generated Homebrew fixed boundaries are treated as
+  unverified; matching only considers reviewed records with a same-version revision
+  patch. This does not cover all applications or package managers.
 - Read-only macOS Application Firewall settings and per-application exceptions.
-- Local audit history, findings, configurable retention, activity log, and JSON/HTML
-  reports.
+- Local SHA-256 hashing (up to 64 MiB) and bounded header-signature inspection for a
+  user-selected file; contents are read in the webview and never uploaded or executed.
+  Signature and extension checks are best-effort and do not determine whether a file is
+  safe.
+- Local audit history, findings with severity/date filters, configurable retention,
+  activity log, and JSON/HTML reports.
+- Local incident cases created from open posture findings, with linked evidence,
+  user-entered timeline notes, auditable status history, and private JSON/HTML exports.
+  Cases do not perform or verify system response actions.
+- A private account-security checklist based on CISA and NIST guidance. Checklist marks
+  are temporary and do not inspect accounts, collect credentials, or persist.
 - Dark and light themes, searchable views, and explicit unavailable/planned states for
   capabilities that are not operational.
 

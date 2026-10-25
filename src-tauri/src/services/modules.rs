@@ -47,7 +47,11 @@ pub fn list() -> Vec<ModuleStatus> {
             id: "network".to_string(),
             name: "Network Security".to_string(),
             status: "partial".to_string(),
-            detail: "Read-only active connection inventory using native tools. Discovery, scanning, and reputation checks are not implemented.".to_string(),
+            detail: if macos {
+                "Read-only socket, interface-address, and DNS resolver inventory is available. Discovery, scanning, and DNS reputation checks are not implemented.".to_string()
+            } else {
+                "Read-only network connection and configuration inventory is unavailable on this platform.".to_string()
+            },
         },
         ModuleStatus {
             id: "firewall".to_string(),
@@ -63,7 +67,11 @@ pub fn list() -> Vec<ModuleStatus> {
             id: "monitoring".to_string(),
             name: "System Monitoring".to_string(),
             status: "partial".to_string(),
-            detail: "Process inventory is live. Event monitoring, startup items, and behavioral detection are not implemented yet.".to_string(),
+            detail: if macos {
+                "Process inventory, launchd startup files, and current-user loaded jobs are available. System services, event monitoring, and behavioral detection are not implemented.".to_string()
+            } else {
+                "Process inventory is available; native startup and service inventories are not implemented on this platform.".to_string()
+            },
         },
         ModuleStatus {
             id: "privacy".to_string(),
@@ -80,8 +88,8 @@ pub fn list() -> Vec<ModuleStatus> {
         ModuleStatus {
             id: "incident-response".to_string(),
             name: "Incident Response".to_string(),
-            status: "planned".to_string(),
-            detail: "Incident creation, evidence timelines, and verified response actions are not implemented yet.".to_string(),
+            status: "partial".to_string(),
+            detail: "Local cases can be created from posture findings with linked evidence, timeline notes, status history, and JSON/HTML exports. System response actions and independent remediation verification are not implemented.".to_string(),
         },
         ModuleStatus {
             id: "backup".to_string(),
@@ -92,8 +100,8 @@ pub fn list() -> Vec<ModuleStatus> {
         ModuleStatus {
             id: "toolkit".to_string(),
             name: "Security Toolkit".to_string(),
-            status: "planned".to_string(),
-            detail: "Hashing, certificate inspection, DNS tools, and safe file analysis are not implemented yet.".to_string(),
+            status: "partial".to_string(),
+            detail: "Local SHA-256 and basic metadata inspection are available for a user-selected file up to 64 MiB. Certificate inspection and diagnostics are not implemented.".to_string(),
         },
         ModuleStatus {
             id: "devices".to_string(),

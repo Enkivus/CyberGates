@@ -31,8 +31,9 @@ Status is based on code presence **and verification**, not screen existence.
 - 🟡 Installed-software inventory on macOS: applications via `system_profiler`,
   Homebrew formulae via `brew list --versions`, searchable with signature/trust data
 - 🟡 Optional Homebrew advisory matching: downloads Homebrew's OSV-format advisory
-  database (~14 MB), indexes it in SQLite, records fetch time/counts, and matches only
-  same-version revision patches (version-bump boundaries are reported as unverified)
+  database (~14 MB), indexes it in SQLite, records fetch time/counts, and only matches
+  non-generated, same-version revision patches. Automatically generated boundaries are
+  treated as unverified because Homebrew describes them as approximate.
 - ⛔ Applications, other package managers, exploitability, and remediation are not matched
 - ⛔ No loose name-only vulnerability claims; inventory alone is not a scan result
 
@@ -58,7 +59,9 @@ Status is based on code presence **and verification**, not screen existence.
 - ✅ Live process snapshot, search, detail dialog
 - 🟡 macOS launchd file inventory for standard user/system property-list directories;
   lists file names, paths, scope, and modification time only
-- ⬜ Loaded service state, all macOS Login Items, and Windows/Linux startup sources
+- 🟡 macOS current-user launchd job list with running PID and last exit status;
+  system daemons and all Login Items are not covered
+- ⬜ Windows/Linux startup sources
 - ⬜ Security event monitoring and behavior detection
 - ⛔ No process termination yet
 
@@ -70,13 +73,18 @@ Status is based on code presence **and verification**, not screen existence.
 
 ## 9. Account Security
 
-- ⬜ All integrations and guidance
+- 🟡 Local MFA, password-manager, recovery, active-session, and phishing checklist;
+  marks remain in memory only and are not account findings
+- ⬜ Provider integrations, breach notifications, and sign-in investigation
 - ⛔ Never collects passwords or authentication codes; no fabricated breaches
 
 ## 10. Incident Response
 
-- ⬜ Incident creation, evidence timeline, response actions, verification, export
-- ⛔ No destructive actions without a designed confirmation/audit workflow
+- 🟡 Local incident cases can be created from open posture findings; linked evidence,
+  user timeline notes, status history, and local persistence are implemented
+- ✅ JSON/HTML case exports with sensitive-data warning
+- ⬜ Event correlation, response actions, independent remediation verification
+- ⛔ No destructive actions or system changes are performed from incident cases
 
 ## 11. Backup and Recovery
 
@@ -86,7 +94,9 @@ Status is based on code presence **and verification**, not screen existence.
 
 ## 12. Security Toolkit
 
-- ⬜ Hashing, signatures/certs, DNS/IP/TLS diagnostics, metadata, log viewer, decoders
+- 🟡 Local SHA-256 (max 64 MiB), basic metadata, and first-4-KiB signature checks for
+  one user-selected file; signature/extension mismatch is informational only
+- ⬜ Signatures/certificates, DNS/IP/TLS diagnostics, log viewer, decoders
 - ⛔ No exploit, credential-theft, stealth, or destructive tools
 
 ## 13. Device Management
@@ -96,6 +106,7 @@ Status is based on code presence **and verification**, not screen existence.
 ## 14. Reports and History
 
 - ✅ Audit history, findings viewer, activity log
+- ✅ Severity and detected-date filters for audit findings
 - ✅ Sanitized JSON and HTML export with sensitive-data warning
 - 🟡 Scan/incident report types and OS notifications are not implemented
 
@@ -126,4 +137,4 @@ Status is based on code presence **and verification**, not screen existence.
 3. Security event monitoring and a searchable timeline.
 4. Windows and Linux audit adapters, tested on each platform.
 5. Firewall rule read/apply/revert with impact preview and audit trail.
-6. Incident workflow built on real events; then toolkit and AI.
+6. Incident workflow built on real events; then remaining toolkit diagnostics and AI.

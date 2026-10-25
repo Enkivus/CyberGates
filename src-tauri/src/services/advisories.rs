@@ -13,7 +13,7 @@ use crate::models::{
 const SOURCE_URL: &str =
     "https://codeload.github.com/Homebrew/advisory-database/tar.gz/refs/heads/main";
 const SOURCE_NAME: &str = "Homebrew advisory database (OSV format)";
-const SCOPE: &str = "Homebrew formula CVEs that Homebrew records as fixed by an applied patch or version bump. The feed's fixed boundary can be the version shipped at generation time, so CyberGates reports only same-version revision patches and treats version-bump boundaries as unverified. This early Homebrew feed is not a complete vulnerability database.";
+const SCOPE: &str = "Homebrew formula advisories. Automatically generated records use the currently shipped version as an approximate fixed boundary, not the exact fixing version; CyberGates treats these as unverified and does not report them as matches. Only non-generated records with a same-upstream-version revision patch are eligible for a match. This early Homebrew feed is not a complete vulnerability database.";
 const MAX_DOWNLOAD_BYTES: u64 = 64 * 1024 * 1024;
 const MAX_UNPACKED_BYTES: u64 = 256 * 1024 * 1024;
 const MAX_RECORD_BYTES: u64 = 2 * 1024 * 1024;
@@ -175,6 +175,10 @@ pub fn report(db: &Db, apps: &[InstalledApp]) -> AppResult<AdvisoryReport> {
             // patches, where the installed revision is demonstrably below the
             // recorded patch revision. Version-bump records are counted as
             // unverified instead of being presented as matches.
+            if !row.boundary_verified {
+                unverified_records += 1;
+                continue;
+            }
             let (installed_base, installed_revision) = split_homebrew_version(installed);
             let (fixed_base, fixed_revision) = split_homebrew_version(fixed);
             let revision_patch = row.fix_kind.as_deref() == Some("patch")
@@ -215,8 +219,20 @@ pub fn report(db: &Db, apps: &[InstalledApp]) -> AppResult<AdvisoryReport> {
 
 fn parse_archive(bytes: &[u8]) -> AppResult<(Vec<AdvisoryRow>, u32, u32, u32)> {
     let decoder = flate2::read::GzDecoder::new(Cursor::new(bytes));
-    let reader = decoder.take(MAX_UNPACKED_BYTES);
-    let mut archive = tar::Archive::new(reader);
+    let mut unpacked = Vec::new();
+    decoder
+        .take(MAX_UNPACKED_BYTES + 1)
+        .read_to_end(&mut unpacked)
+        .map_err(|err| {
+            AppError::Internal(format!("could not decompress advisory archive: {err}"))
+        })?;
+    if unpacked.len() as u64 > MAX_UNPACKED_BYTES {
+        return Err(AppError::Internal(format!(
+            "advisory archive expands beyond the {} MiB limit",
+            MAX_UNPACKED_BYTES / (1024 * 1024)
+        )));
+    }
+    let mut archive = tar::Archive::new(Cursor::new(unpacked));
     let mut rows = Vec::new();
     let mut ids = HashSet::new();
     let mut packages = HashSet::new();
@@ -321,6 +337,13 @@ fn parse_record(text: &str) -> Option<ParsedRecord> {
                 .collect()
         })
         .unwrap_or_default();
+    // Homebrew documents generated fixed boundaries as the version currently
+    // shipped, which is only an upper bound until reviewed against history.
+    let boundary_verified = value
+        .get("database_specific")
+        .and_then(|value| value.get("source"))
+        .and_then(|value| value.as_str())
+        != Some("generated");
 
     let mut rows = Vec::new();
     for affected in value.get("affected")?.as_array()? {
@@ -360,6 +383,7 @@ fn parse_record(text: &str) -> Option<ParsedRecord> {
                         introduced: introduced.clone(),
                         fixed: Some(value.to_string()),
                         fix_kind: fix_kind.clone(),
+                        boundary_verified,
                         summary: summary.clone(),
                         severity: severity.clone(),
                         aliases: aliases.clone(),
@@ -376,6 +400,7 @@ fn parse_record(text: &str) -> Option<ParsedRecord> {
                     introduced: Some(introduced),
                     fixed: None,
                     fix_kind: fix_kind.clone(),
+                    boundary_verified,
                     summary: summary.clone(),
                     severity: severity.clone(),
                     aliases: aliases.clone(),
@@ -439,6 +464,23 @@ mod tests {
         assert_eq!(record.rows[0].fix_kind.as_deref(), Some("patch"));
         assert_eq!(record.rows[0].aliases, vec!["CVE-2026-1"]);
         assert_eq!(record.rows[0].references.len(), 1);
+        assert!(record.rows[0].boundary_verified);
+    }
+
+    #[test]
+    fn generated_homebrew_fixed_boundary_is_unverified() {
+        let json = r#"{
+          "id":"BREW-example-CVE-2026-3",
+          "database_specific":{"source":"generated"},
+          "affected":[{
+            "package":{"ecosystem":"Homebrew","name":"example"},
+            "ecosystem_specific":{"fix":"patch"},
+            "ranges":[{"type":"ECOSYSTEM","events":[{"introduced":"0"},{"fixed":"1.2_1"}]}]
+          }]
+        }"#;
+        let record = parse_record(json).expect("record");
+        assert_eq!(record.rows.len(), 1);
+        assert!(!record.rows[0].boundary_verified);
     }
 
     #[test]

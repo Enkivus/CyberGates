@@ -18,7 +18,9 @@ No bug bounty or response SLA is currently published.
 - The webview has no shell/filesystem/HTTP plugins; only typed commands are exposed.
 - Subprocess execution uses fixed programs and argument arrays with hard timeouts and
   bounded output capture. Executable paths must be absolute, so the inherited `PATH`
-  cannot substitute a different binary. No shell string construction.
+  cannot substitute a different binary. Unix subprocesses run in a dedicated process
+  group so timeout cleanup also terminates descendants holding captured pipes. No
+  shell string construction in production code.
 - Unix local-data and report directories use mode `0700`; SQLite database and report
   files use mode `0600`. New files are created exclusively, and existing database
   symlinks are rejected before SQLite opens them.
