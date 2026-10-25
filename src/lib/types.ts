@@ -96,6 +96,22 @@ export interface ProcessInfo {
   runTimeSeconds: number;
 }
 
+export interface StartupItem {
+  name: string;
+  path: string;
+  scope: string;
+  modifiedAt: string | null;
+}
+
+export interface StartupInventory {
+  available: boolean;
+  items: StartupItem[];
+  fetchedAt: string;
+  source: string;
+  scopeNote: string;
+  warnings: string[];
+}
+
 export interface NetworkConnection {
   protocol: string;
   localAddress: string;

@@ -15,6 +15,7 @@ import type {
   SettingEntry,
   StorageInfo,
   SystemInfo,
+  StartupInventory,
 } from "./types";
 
 interface BackendError {
@@ -45,6 +46,7 @@ export const api = {
   runAudit: () => call<Dashboard>("run_audit"),
   getSystemInfo: () => call<SystemInfo>("get_system_info"),
   getProcesses: (limit = 250) => call<ProcessInfo[]>("get_processes", { limit }),
+  getStartupInventory: () => call<StartupInventory>("get_startup_inventory"),
   getNetworkConnections: () =>
     call<NetworkConnection[]>("get_network_connections"),
   getInstalledApps: () => call<InstalledApp[]>("get_installed_apps"),

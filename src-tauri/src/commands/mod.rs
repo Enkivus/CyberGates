@@ -4,7 +4,8 @@ use tauri::State;
 use crate::error::{AppError, AppResult};
 use crate::models::{
     AdvisoryReport, AdvisoryUpdate, AuditLogEntry, AuditRecord, Dashboard, Finding,
-    FirewallSnapshot, InstalledApp, ModuleStatus, NetworkConnection, ProcessInfo, SystemInfo,
+    FirewallSnapshot, InstalledApp, ModuleStatus, NetworkConnection, ProcessInfo, StartupInventory,
+    SystemInfo,
 };
 use crate::platform;
 use crate::security::validate;
@@ -125,6 +126,13 @@ pub async fn get_firewall_snapshot(
     })
     .await
     .map_err(|err| AppError::Task(err.to_string()))?
+}
+
+#[tauri::command]
+pub async fn get_startup_inventory(_state: State<'_, AppState>) -> AppResult<StartupInventory> {
+    tauri::async_runtime::spawn_blocking(|| platform::adapter().startup_inventory())
+        .await
+        .map_err(|err| AppError::Task(err.to_string()))?
 }
 
 struct AdvisoryUpdateGuard(std::sync::Arc<std::sync::atomic::AtomicBool>);

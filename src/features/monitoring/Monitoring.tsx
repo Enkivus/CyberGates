@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Cpu, MemoryStick, RefreshCw, Search, Terminal } from "lucide-react";
 import { api } from "../../lib/api";
-import type { ProcessInfo } from "../../lib/types";
+import type { ProcessInfo, StartupInventory } from "../../lib/types";
 import {
   EmptyState,
   ErrorState,
@@ -28,6 +28,10 @@ export function Monitoring() {
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<ProcessInfo | null>(null);
+  const [startupInventory, setStartupInventory] = useState<StartupInventory | null>(null);
+  const [startupLoading, setStartupLoading] = useState(true);
+  const [startupError, setStartupError] = useState<string | null>(null);
+  const [startupQuery, setStartupQuery] = useState("");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -41,9 +45,22 @@ export function Monitoring() {
     }
   }, []);
 
+  const loadStartup = useCallback(async () => {
+    setStartupLoading(true);
+    setStartupError(null);
+    try {
+      setStartupInventory(await api.getStartupInventory());
+    } catch (err) {
+      setStartupError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setStartupLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     void load();
-  }, [load]);
+    void loadStartup();
+  }, [load, loadStartup]);
 
   const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -56,6 +73,15 @@ export function Monitoring() {
     );
   }, [processes, query]);
 
+  const filteredStartupItems = useMemo(() => {
+    const needle = startupQuery.trim().toLowerCase();
+    const items = startupInventory?.items ?? [];
+    if (!needle) return items;
+    return items.filter((item) =>
+      `${item.name} ${item.path} ${item.scope}`.toLowerCase().includes(needle),
+    );
+  }, [startupInventory, startupQuery]);
+
   const topCpu = processes[0];
   const totalMemory = processes.reduce((sum, process) => sum + process.memoryMb, 0);
 
@@ -63,13 +89,16 @@ export function Monitoring() {
     <div className="fade-in">
       <PageHeader
         title="System Monitoring"
-        subtitle="A live snapshot of running processes read from the operating system. Event monitoring and behavioral detection are not implemented yet."
+        subtitle="Read-only process and startup-file inventories from the operating system. Event monitoring and behavioral detection are not implemented yet."
         actions={
           <button
             type="button"
             className="btn"
-            onClick={() => void load()}
-            disabled={loading}
+            onClick={() => {
+              void load();
+              void loadStartup();
+            }}
+            disabled={loading || startupLoading}
           >
             <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} aria-hidden />
             Refresh
@@ -104,8 +133,8 @@ export function Monitoring() {
       <div className="mb-4 rounded-xl border border-warn/30 bg-warn-soft px-4 py-3 text-xs leading-relaxed text-muted">
         <strong className="text-ink">Scope:</strong> CyberGates lists processes and
         executable paths only. It does not monitor security events, terminate processes,
-        or detect behavior yet. Process termination will require explicit confirmation
-        when implemented.
+        or detect behavior yet. Startup inventory lists standard macOS launchd files only;
+        it does not cover all Login Items or prove that a service is running.
       </div>
 
       <Panel>
@@ -189,6 +218,85 @@ export function Monitoring() {
             </table>
           </div>
         )}
+      </Panel>
+
+      <Panel className="mt-5">
+        <PanelHeader
+          title="Startup items"
+          description={startupInventory?.source ?? "Read-only startup configuration inventory"}
+          actions={
+            <div className="relative">
+              <Search
+                className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-faint"
+                aria-hidden
+              />
+              <input
+                value={startupQuery}
+                onChange={(event) => setStartupQuery(event.target.value)}
+                placeholder="Filter startup files"
+                className="input w-56 py-1.5 pl-8 text-xs"
+                aria-label="Filter startup items"
+              />
+            </div>
+          }
+        />
+        {startupError ? (
+          <ErrorState message={startupError} onRetry={() => void loadStartup()} />
+        ) : startupLoading && !startupInventory ? (
+          <LoadingState label="Loading startup items" />
+        ) : startupInventory && !startupInventory.available ? (
+          <EmptyState
+            title="Startup inventory unavailable"
+            description={startupInventory.scopeNote}
+          />
+        ) : startupInventory ? (
+          <>
+            <p className="border-b border-line px-5 py-3 text-xs leading-relaxed text-muted">
+              {startupInventory.scopeNote}
+            </p>
+            {startupInventory.warnings.map((warning) => (
+              <p key={warning} className="border-b border-line px-5 py-2 text-xs text-warn">
+                {warning}
+              </p>
+            ))}
+            {filteredStartupItems.length === 0 ? (
+              <EmptyState
+                title={startupInventory.items.length ? "No matching startup files" : "No startup files found"}
+                description={startupInventory.items.length ? "Try another filter." : "No regular property-list files were found in the inspected launchd directories."}
+              />
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="table">
+                  <thead>
+                    <tr>
+                      <th>File name</th>
+                      <th>Scope</th>
+                      <th>Modified</th>
+                      <th>Property-list file</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredStartupItems.map((item) => (
+                      <tr key={item.path}>
+                        <td className="font-medium">{item.name}</td>
+                        <td className="text-xs text-muted">{item.scope}</td>
+                        <td className="text-xs text-muted">
+                          {item.modifiedAt ? new Date(item.modifiedAt).toLocaleString() : "Unavailable"}
+                        </td>
+                        <td className="mono max-w-[34rem] break-all text-[11px] text-faint">
+                          {item.path}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+            <p className="border-t border-line px-5 py-2 text-[10px] text-faint">
+              {startupInventory.items.length} files listed · refreshed {new Date(startupInventory.fetchedAt).toLocaleTimeString()}
+            </p>
+          </>
+        ) : null}
       </Panel>
 
       {selected ? (
