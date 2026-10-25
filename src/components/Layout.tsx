@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import type { Theme } from "../lib/theme";
 import { findNavItem, NAV_GROUPS } from "./navigation";
+import { CommandPalette } from "./CommandPalette";
 
 const STORAGE_KEY = "cybergates.sidebar-collapsed";
 
@@ -142,6 +143,7 @@ export function Layout({
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <CommandPalette />
             <span className="hidden text-[11px] text-faint sm:block">v0.1.0</span>
             <button
               type="button"

@@ -87,4 +87,13 @@ export function findNavItem(pathname: string): NavItem {
   return exact ?? NAV_ITEMS[0];
 }
 
+export function searchNavItems(query: string): NavItem[] {
+  const normalized = query.trim().toLocaleLowerCase();
+  if (!normalized) return NAV_ITEMS;
+
+  return NAV_ITEMS.filter((item) =>
+    `${item.label} ${item.group}`.toLocaleLowerCase().includes(normalized),
+  );
+}
+
 export { ShieldAlert };
