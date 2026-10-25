@@ -32,6 +32,8 @@ hex = "0.4"
 wait-timeout = "0.2"
 libc = "0.2"
 reqwest = { version = "0.12", default-features = false, features = ["blocking", "rustls-tls"] }
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
+webpki-roots = "1"
 flate2 = "1"
 tar = "0.4"
 version-compare = "0.2"

@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   formatFileSize,
+  FILE_SIGNATURE_BYTES,
   inspectFileSignature,
   MAX_HASH_FILE_BYTES,
   sha256File,
@@ -51,5 +52,12 @@ describe("local file hash helpers", () => {
       signature: null,
       extensionMismatch: false,
     });
+  });
+
+  it("reads only the bounded header for signature inspection", async () => {
+    const file = new File(["%PDF-1.7" + "x".repeat(10_000)], "large.pdf");
+    const slice = vi.spyOn(file, "slice");
+    await inspectFileSignature(file);
+    expect(slice).toHaveBeenCalledWith(0, FILE_SIGNATURE_BYTES);
   });
 });

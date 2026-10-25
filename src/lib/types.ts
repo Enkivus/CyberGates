@@ -187,6 +187,23 @@ export interface NetworkSnapshot {
   warnings: string[];
 }
 
+export interface HostDiagnostic {
+  host: string;
+  resolvedAt: string;
+  addresses: string[];
+  addressesTruncated: boolean;
+  tls: {
+    verified: boolean;
+    peerAddress: string | null;
+    protocol: string | null;
+    cipherSuite: string | null;
+    certificateChainLength: number;
+    leafSha256: string | null;
+    error: string | null;
+  };
+  scopeNote: string;
+}
+
 export interface ModuleStatus {
   id: string;
   name: string;

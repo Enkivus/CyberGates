@@ -150,7 +150,7 @@ export function FileHasher() {
         <Panel className="p-5">
           <h2 className="font-semibold text-ink">More toolkit capabilities</h2>
           <p className="mt-2 text-sm leading-relaxed text-muted">
-            Certificate diagnostics, DNS/IP/TLS analysis, log viewing, and safe format decoders are not implemented yet.
+            Certificate chain details, IP/domain reputation, log viewing, and safe format decoders are not implemented yet. DNS and TLS checks only inspect the host you enter; they do not provide reputation or safety verdicts.
             CyberGates does not make reputation or malware claims from a file hash alone.
           </p>
         </Panel>

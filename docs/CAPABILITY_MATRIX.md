@@ -43,7 +43,7 @@ Legend: ✅ implemented and tested · 🟡 partial · ⛔ explicitly unavailable
 | Privacy / app permission audit | 🟡 core signals | ⛔ | ⛔ |
 | Account security integrations | ⬜ | ⬜ | ⬜ |
 | Incident case tracking | 🟡 local findings + notes | 🟡 local findings + notes | 🟡 local findings + notes |
-| Security toolkit | ⬜ local file hashing not verified on target OS | 🟡 local file hashing | ⬜ local file hashing not verified on target OS |
+| Security toolkit | ⬜ local toolkit checks not verified on target OS | 🟡 hashing, bounded file signatures, DNS + TLS checks | ⬜ local toolkit checks not verified on target OS |
 | AI assistant | ⬜ | ⬜ | ⬜ |
 | Multi-device management | ⛔ no backend | ⛔ | ⛔ |
 | Persisted findings / history | ✅ | ✅ (no adapter data) | ✅ (no adapter data) |

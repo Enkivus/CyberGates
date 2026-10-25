@@ -63,6 +63,7 @@ pub fn run() {
             commands::get_processes,
             commands::get_network_connections,
             commands::get_network_snapshot,
+            commands::diagnose_host,
             commands::get_installed_apps,
             commands::get_firewall_snapshot,
             commands::get_startup_inventory,

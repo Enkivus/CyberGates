@@ -100,9 +100,11 @@ application data directory selected by Tauri. On macOS this is normally
 current user. Reports may include hostnames, paths, processes, and network details;
 review them before sharing.
 
-The app has no active telemetry, cloud sync, or AI service. Updating the optional
-Homebrew advisory database is the only feature that makes an outbound request; it
-downloads public advisory data over HTTPS and does not upload device inventory. See
+The app has no active telemetry, cloud sync, or AI service. Network requests happen
+only when you update the optional Homebrew advisory database or submit a host in DNS/TLS
+diagnostics. The advisory update downloads public data without uploading inventory;
+host diagnostics disclose the entered host to your configured DNS resolver and open a
+TLS connection to that host on port 443. See
 [`docs/THREAT_MODEL.md`](docs/THREAT_MODEL.md) for trust boundaries and limitations.
 
 ## Contributing

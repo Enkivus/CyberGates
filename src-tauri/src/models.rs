@@ -304,6 +304,29 @@ pub struct NetworkSnapshot {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct HostDiagnostic {
+    pub host: String,
+    pub resolved_at: String,
+    pub addresses: Vec<String>,
+    pub addresses_truncated: bool,
+    pub tls: TlsDiagnostic,
+    pub scope_note: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TlsDiagnostic {
+    pub verified: bool,
+    pub peer_address: Option<String>,
+    pub protocol: Option<String>,
+    pub cipher_suite: Option<String>,
+    pub certificate_chain_length: usize,
+    pub leaf_sha256: Option<String>,
+    pub error: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct InstalledApp {
     pub name: String,
     pub version: Option<String>,

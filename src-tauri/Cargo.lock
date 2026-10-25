@@ -524,6 +524,7 @@ dependencies = [
  "reqwest 0.12.28",
  "rusqlite",
  "rusqlite_migration",
+ "rustls",
  "serde",
  "serde_json",
  "sha2 0.11.1",
@@ -538,6 +539,7 @@ dependencies = [
  "uuid",
  "version-compare",
  "wait-timeout",
+ "webpki-roots",
 ]
 
 [[package]]

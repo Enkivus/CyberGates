@@ -12,9 +12,10 @@ No bug bounty or response SLA is currently published.
 
 ## Current security posture
 
-- Local-first: no telemetry, cloud sync, or AI provider is active. The only outbound
-  request is a user-triggered Homebrew advisory database download over HTTPS; it sends
-  no device identifiers or inventory.
+- Local-first: no telemetry, cloud sync, or AI provider is active. Outbound requests
+  occur only for a user-triggered Homebrew feed update or host DNS/TLS diagnostic. Host
+  diagnostics disclose the submitted name to the configured resolver and target host;
+  the app sends no inventory or device identifiers.
 - The webview has no shell/filesystem/HTTP plugins; only typed commands are exposed.
 - Subprocess execution uses fixed programs and argument arrays with hard timeouts and
   bounded output capture. Executable paths must be absolute, so the inherited `PATH`

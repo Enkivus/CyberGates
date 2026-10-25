@@ -25,9 +25,11 @@ versus planned. It must be updated whenever a new privileged capability is added
    programs and argument arrays; output is untrusted data.
 3. **Backend ↔ local database/files.** Paths are app-controlled; reports are written
    only to the app data directory.
-4. **Backend ↔ external network.** The only outbound call is the user-triggered
-   Homebrew advisory database download over HTTPS. It sends no device data. Future
-   reputation checks, AI, and cloud services would cross this boundary.
+4. **Backend ↔ external network.** Outbound requests are user-triggered: the advisory
+   feed update downloads public data; host diagnostics query the configured DNS resolver
+   and open a TLS handshake to the submitted host on port 443. The host resolver and
+   remote endpoint can observe the requested name. No HTTP request or inventory upload
+   occurs. AI and cloud services would cross this boundary separately.
 5. **Application ↔ packaged artifacts.** Installers must be signed and verified;
    current builds are unsigned previews.
 

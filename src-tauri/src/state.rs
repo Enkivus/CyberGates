@@ -12,6 +12,7 @@ pub struct AppState {
     pub log_dir: PathBuf,
     pub audit_running: Arc<AtomicBool>,
     pub advisory_update_running: Arc<AtomicBool>,
+    pub host_diagnostic_running: Arc<AtomicBool>,
 }
 
 impl AppState {
@@ -24,6 +25,7 @@ impl AppState {
             log_dir,
             audit_running: Arc::new(AtomicBool::new(false)),
             advisory_update_running: Arc::new(AtomicBool::new(false)),
+            host_diagnostic_running: Arc::new(AtomicBool::new(false)),
         }
     }
 }

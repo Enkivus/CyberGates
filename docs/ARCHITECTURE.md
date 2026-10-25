@@ -7,8 +7,8 @@ CyberGates is a Tauri 2 desktop application:
 - **Rust backend** (`src-tauri/`) owns all system access, persistence, validation,
   scoring, and report generation.
 - **React + TypeScript UI** (`src/`) renders backend data. The only direct local-file
-  access is a user-selected file through the browser file picker for the bounded hash
-  utility; the webview cannot browse arbitrary paths.
+  access is a user-selected file through the browser file picker for bounded hashing
+  and header inspection; the webview cannot browse arbitrary paths.
 - **Typed IPC** connects them. The webview receives no filesystem, shell, or process
   plugin permissions (`src-tauri/capabilities/default.json` grants only `core:default`).
 
@@ -126,9 +126,10 @@ Adding an adapter must not change the UI contract; capability states are data.
 ## IPC and privilege
 
 - No shell, filesystem, HTTP, or opener plugin is exposed to the webview.
-- A user can select one file for the local SHA-256 utility; its content is read only
-  through the browser file input, capped at 64 MiB, and is never sent over IPC or
-  uploaded. The app never executes the selected file.
+- A user can select one file for local SHA-256 and signature inspection. Hash input is
+  capped at 64 MiB; signature inspection reads only the first 4 KiB through the browser
+  file input. Contents are never sent over IPC or uploaded, and the app never executes
+  the selected file.
 - Commands accept typed parameters; IDs, formats, and setting keys are validated.
 - Process execution lives entirely in Rust, uses argument arrays (no shell string
   concatenation), and imposes timeouts/output caps.

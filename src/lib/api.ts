@@ -14,6 +14,7 @@ import type {
   ModuleStatus,
   LoadedServiceInventory,
   NetworkConnection,
+  HostDiagnostic,
   NetworkSnapshot,
   ProcessInfo,
   ReportExport,
@@ -56,6 +57,7 @@ export const api = {
   getNetworkConnections: () =>
     call<NetworkConnection[]>("get_network_connections"),
   getNetworkSnapshot: () => call<NetworkSnapshot>("get_network_snapshot"),
+  diagnoseHost: (host: string) => call<HostDiagnostic>("diagnose_host", { host }),
   getInstalledApps: () => call<InstalledApp[]>("get_installed_apps"),
   getFirewallSnapshot: () => call<FirewallSnapshot | null>("get_firewall_snapshot"),
   updateAdvisoryDatabase: () => call<AdvisoryUpdate>("update_advisory_database"),

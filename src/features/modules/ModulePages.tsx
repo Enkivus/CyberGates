@@ -3,6 +3,7 @@ import { ExternalLink, ShieldCheck } from "lucide-react";
 import { ModulePage } from "../../components/ModulePage";
 import { PageHeader, Panel, PanelHeader } from "../../components/ui";
 import { FileHasher } from "../toolkit/FileHasher";
+import { HostDiagnostics } from "../toolkit/HostDiagnostics";
 import { Incidents } from "../incidents/Incidents";
 
 export function ThreatProtection() {
@@ -294,7 +295,12 @@ export function Backup() {
 }
 
 export function Toolkit() {
-  return <FileHasher />;
+  return (
+    <div className="space-y-5">
+      <FileHasher />
+      <HostDiagnostics />
+    </div>
+  );
 }
 
 export function Devices() {

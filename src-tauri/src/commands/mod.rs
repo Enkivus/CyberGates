@@ -4,8 +4,9 @@ use tauri::State;
 use crate::error::{AppError, AppResult};
 use crate::models::{
     AdvisoryReport, AdvisoryUpdate, AuditLogEntry, AuditRecord, Dashboard, Finding,
-    FirewallSnapshot, IncidentDetail, IncidentRecord, InstalledApp, LoadedServiceInventory,
-    ModuleStatus, NetworkConnection, NetworkSnapshot, ProcessInfo, StartupInventory, SystemInfo,
+    FirewallSnapshot, HostDiagnostic, IncidentDetail, IncidentRecord, InstalledApp,
+    LoadedServiceInventory, ModuleStatus, NetworkConnection, NetworkSnapshot, ProcessInfo,
+    StartupInventory, SystemInfo,
 };
 use crate::platform;
 use crate::security::validate;
@@ -109,6 +110,34 @@ pub async fn get_network_connections(
 #[tauri::command]
 pub async fn get_network_snapshot(_state: State<'_, AppState>) -> AppResult<NetworkSnapshot> {
     tauri::async_runtime::spawn_blocking(|| platform::adapter().network_snapshot())
+        .await
+        .map_err(|err| AppError::Task(err.to_string()))?
+}
+
+#[tauri::command]
+pub async fn diagnose_host(state: State<'_, AppState>, host: String) -> AppResult<HostDiagnostic> {
+    use std::sync::atomic::Ordering;
+
+    if state
+        .host_diagnostic_running
+        .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
+        .is_err()
+    {
+        return Err(AppError::Validation(
+            "a host diagnostic is already running".to_string(),
+        ));
+    }
+    struct DiagnosticGuard(std::sync::Arc<std::sync::atomic::AtomicBool>);
+    impl Drop for DiagnosticGuard {
+        fn drop(&mut self) {
+            self.0.store(false, Ordering::SeqCst);
+        }
+    }
+    let guard = DiagnosticGuard(state.host_diagnostic_running.clone());
+    tauri::async_runtime::spawn_blocking(move || {
+        let _guard = guard;
+        services::diagnostics::diagnose_host(&host)
+    })
         .await
         .map_err(|err| AppError::Task(err.to_string()))?
 }

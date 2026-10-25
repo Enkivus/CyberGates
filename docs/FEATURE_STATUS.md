@@ -42,6 +42,8 @@ Status is based on code presence **and verification**, not screen existence.
 - ✅ Read-only TCP/UDP socket inventory with process/PID where exposed
 - ✅ macOS interface addresses and configured DNS resolver inventory (no DNS trust or
   reputation verdicts)
+- ✅ User-triggered DNS lookup and TLS certificate/handshake diagnostics in the toolkit;
+  no HTTP request or reputation verdict
 - ✅ Filters, counts, explicit scope warning
 - ⬜ Discovery, authorized scanning, DNS trust/reputation checks, detailed interface diagnostics
 - ⛔ No interception or external scanning
@@ -137,4 +139,5 @@ Status is based on code presence **and verification**, not screen existence.
 3. Security event monitoring and a searchable timeline.
 4. Windows and Linux audit adapters, tested on each platform.
 5. Firewall rule read/apply/revert with impact preview and audit trail.
-6. Incident workflow built on real events; then remaining toolkit diagnostics and AI.
+6. Build remaining toolkit diagnostics and safe response workflows; keep AI and
+   multi-device features unavailable until consent, backend, and threat controls exist.
