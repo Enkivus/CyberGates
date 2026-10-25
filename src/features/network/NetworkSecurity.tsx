@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Globe2, Network, RefreshCw, Search, ShieldAlert } from "lucide-react";
 import { api } from "../../lib/api";
-import type { NetworkConnection } from "../../lib/types";
+import type { NetworkConnection, NetworkSnapshot } from "../../lib/types";
 import {
   EmptyState,
   ErrorState,
@@ -16,6 +16,7 @@ type Filter = "all" | "tcp" | "udp" | "listening" | "established";
 
 export function NetworkSecurity() {
   const [connections, setConnections] = useState<NetworkConnection[]>([]);
+  const [snapshot, setSnapshot] = useState<NetworkSnapshot | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<Filter>("all");
@@ -25,7 +26,12 @@ export function NetworkSecurity() {
     setLoading(true);
     setError(null);
     try {
-      setConnections(await api.getNetworkConnections());
+      const [nextConnections, nextSnapshot] = await Promise.all([
+        api.getNetworkConnections(),
+        api.getNetworkSnapshot(),
+      ]);
+      setConnections(nextConnections);
+      setSnapshot(nextSnapshot);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -113,6 +119,69 @@ export function NetworkSecurity() {
         scope controls, and rate limits that are not implemented yet. Some sockets owned
         by other users or system services may not be visible without elevated
         permissions.
+      </div>
+
+      <div className="mb-4 grid gap-4 lg:grid-cols-2">
+        <Panel>
+          <PanelHeader
+            title="Network interfaces"
+            description={snapshot?.source ?? "Read-only local interface inventory"}
+          />
+          {!snapshot?.available ? (
+            <EmptyState
+              title="Interface inventory unavailable"
+              description={snapshot?.scopeNote ?? "Loading local network configuration."}
+            />
+          ) : snapshot.interfaces.length === 0 ? (
+            <EmptyState title="No interfaces found" description={snapshot.scopeNote} />
+          ) : (
+            <div className="divide-y divide-border">
+              {snapshot.interfaces.map((iface) => (
+                <div key={iface.name} className="flex items-start justify-between gap-4 py-3 first:pt-0">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 font-medium">
+                      <span>{iface.name}</span>
+                      <span className={`chip ${iface.up ? "status-pass border-transparent" : ""}`}>
+                        {iface.up ? "Up" : "Down"}
+                      </span>
+                    </div>
+                    <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted">
+                      {iface.addresses.length ? iface.addresses.map((address) => (
+                        <span className="mono" key={address}>{address}</span>
+                      )) : <span>No non-loopback address exposed</span>}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </Panel>
+
+        <Panel>
+          <PanelHeader
+            title="Configured DNS resolvers"
+            description="Local resolver configuration; no DNS traffic is queried or intercepted."
+          />
+          {!snapshot?.available ? (
+            <EmptyState
+              title="DNS configuration unavailable"
+              description={snapshot?.warnings.join(" ") ?? "Loading local resolver configuration."}
+            />
+          ) : snapshot.dnsServers.length === 0 ? (
+            <EmptyState title="No resolver addresses exposed" description={snapshot.scopeNote} />
+          ) : (
+            <ul className="space-y-2">
+              {snapshot.dnsServers.map((server) => (
+                <li className="mono rounded-lg border border-line bg-surface-2 px-3 py-2 text-sm" key={server}>
+                  {server}
+                </li>
+              ))}
+            </ul>
+          )}
+          {snapshot?.warnings.map((warning) => (
+            <p className="mt-3 text-xs text-muted" key={warning}>{warning}</p>
+          ))}
+        </Panel>
       </div>
 
       <Panel>

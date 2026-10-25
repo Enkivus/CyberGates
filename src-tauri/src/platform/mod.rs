@@ -1,6 +1,7 @@
 use crate::error::AppResult;
 use crate::models::{
-    now_rfc3339, CheckResult, FirewallSnapshot, InstalledApp, NetworkConnection, StartupInventory,
+    now_rfc3339, CheckResult, FirewallSnapshot, InstalledApp, NetworkConnection, NetworkSnapshot,
+    StartupInventory,
 };
 
 pub trait PlatformAudit: Send + Sync {
@@ -10,6 +11,20 @@ pub trait PlatformAudit: Send + Sync {
     fn audit(&self) -> Vec<CheckResult>;
     fn connections(&self) -> AppResult<Vec<NetworkConnection>> {
         Ok(Vec::new())
+    }
+
+    fn network_snapshot(&self) -> AppResult<NetworkSnapshot> {
+        Ok(NetworkSnapshot {
+            available: false,
+            interfaces: Vec::new(),
+            dns_servers: Vec::new(),
+            fetched_at: now_rfc3339(),
+            source: "No native network configuration provider".to_string(),
+            scope_note:
+                "Interface and DNS configuration inspection is unavailable on this platform."
+                    .to_string(),
+            warnings: Vec::new(),
+        })
     }
 
     fn installed_apps(&self) -> AppResult<Vec<InstalledApp>> {

@@ -37,9 +37,9 @@ versus planned. It must be updated whenever a new privileged capability is added
 | Malicious/oversized tool output | Memory exhaustion, UI injection | Output capped (512 KiB default, 8 MiB for `system_profiler`); timeouts on every subprocess; React escapes text | Implemented |
 | Unauthorized IPC / parameter abuse | Data tampering, expensive work | Typed commands, clamped limits, setting allowlist, audit concurrency guard | Implemented |
 | Database corruption / partial audit | Misleading history | WAL, migrations, transactions, interrupted-audit recovery | Implemented |
-| Sensitive data leakage via reports/logs | Privacy harm | Reports warn and are local; logs exclude secrets/content; no telemetry | Partial (reports are sensitive by nature) |
+| Sensitive data leakage via reports/logs | Privacy harm | Unix data/log/report directories are mode 0700; SQLite and report files are mode 0600; reports warn and logs exclude secrets/content | Partial (not encrypted at rest; Windows relies on inherited per-user ACLs) |
 | Malicious or malformed advisory feed | Memory exhaustion, SQL injection, misleading findings | HTTPS-only fixed URL; 64 MiB download cap; 256 MiB unpacked cap; 2 MiB/record cap; no extraction to disk; parameterized SQL; conservative applicability rules | Implemented |
-| Supply-chain compromise | Full compromise | Lockfiles, pinned major versions, CI, planned `cargo audit`/`npm audit`; dependency review required | Partial |
+| Supply-chain compromise | Full compromise | Lockfiles and CI; dependency advisory audit is release-required but could not be completed in this environment (npm registry unavailable; `cargo-audit` not installed) | Partial |
 | Unsigned updates / installers | Impostor binaries | No updater; builds explicitly labeled unsigned | Planned (signing) |
 | Privilege escalation | System compromise | App runs as the user; no root helper; no privileged writes | Implemented by omission |
 | Spoofed security findings / false assurance | User makes bad decisions | Findings require evidence; unavailable checks excluded; UI states limitations | Implemented |
@@ -64,7 +64,9 @@ versus planned. It must be updated whenever a new privileged capability is added
   or tools; CyberGates cannot defend a fully compromised user session.
 - Unsigned preview builds could be tampered with; only obtain them from a trusted
   build. Signing/notarization is not yet configured.
-- Reports contain sensitive data and are protected only by filesystem permissions.
+- Reports contain sensitive data and are protected only by filesystem permissions. On
+  Unix, private app directories plus restrictive database/report file modes limit
+  access to the current user. Windows relies on inherited per-user directory ACLs.
 - macOS privacy controls may hide data; those checks report unavailable.
 
 ## Future privileged operations — required controls

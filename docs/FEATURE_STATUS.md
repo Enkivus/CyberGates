@@ -39,8 +39,10 @@ Status is based on code presence **and verification**, not screen existence.
 ## 5. Network Security
 
 - ✅ Read-only TCP/UDP socket inventory with process/PID where exposed
+- ✅ macOS interface addresses and configured DNS resolver inventory (no DNS trust or
+  reputation verdicts)
 - ✅ Filters, counts, explicit scope warning
-- ⬜ Discovery, authorized scanning, DNS/reputation checks, interface detail
+- ⬜ Discovery, authorized scanning, DNS trust/reputation checks, detailed interface diagnostics
 - ⛔ No interception or external scanning
 
 ## 6. Firewall

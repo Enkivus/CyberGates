@@ -10,6 +10,7 @@ import type {
   InstalledApp,
   ModuleStatus,
   NetworkConnection,
+  NetworkSnapshot,
   ProcessInfo,
   ReportExport,
   SettingEntry,
@@ -49,6 +50,7 @@ export const api = {
   getStartupInventory: () => call<StartupInventory>("get_startup_inventory"),
   getNetworkConnections: () =>
     call<NetworkConnection[]>("get_network_connections"),
+  getNetworkSnapshot: () => call<NetworkSnapshot>("get_network_snapshot"),
   getInstalledApps: () => call<InstalledApp[]>("get_installed_apps"),
   getFirewallSnapshot: () => call<FirewallSnapshot | null>("get_firewall_snapshot"),
   updateAdvisoryDatabase: () => call<AdvisoryUpdate>("update_advisory_database"),

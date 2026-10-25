@@ -4,8 +4,8 @@ use tauri::State;
 use crate::error::{AppError, AppResult};
 use crate::models::{
     AdvisoryReport, AdvisoryUpdate, AuditLogEntry, AuditRecord, Dashboard, Finding,
-    FirewallSnapshot, InstalledApp, ModuleStatus, NetworkConnection, ProcessInfo, StartupInventory,
-    SystemInfo,
+    FirewallSnapshot, InstalledApp, ModuleStatus, NetworkConnection, NetworkSnapshot, ProcessInfo,
+    StartupInventory, SystemInfo,
 };
 use crate::platform;
 use crate::security::validate;
@@ -102,6 +102,13 @@ pub async fn get_network_connections(
 ) -> AppResult<Vec<NetworkConnection>> {
     let _ = state;
     tauri::async_runtime::spawn_blocking(services::network::default_connections)
+        .await
+        .map_err(|err| AppError::Task(err.to_string()))?
+}
+
+#[tauri::command]
+pub async fn get_network_snapshot(_state: State<'_, AppState>) -> AppResult<NetworkSnapshot> {
+    tauri::async_runtime::spawn_blocking(|| platform::adapter().network_snapshot())
         .await
         .map_err(|err| AppError::Task(err.to_string()))?
 }

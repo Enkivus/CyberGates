@@ -35,6 +35,9 @@ Legend: ✅ implemented and tested · 🟡 partial · ⛔ explicitly unavailable
 | Process inventory | ✅ | ⬜ | ⬜ |
 | Event monitoring / timeline | ⬜ | ⬜ | ⬜ |
 | Network connection inventory | ✅ read-only | ⛔ | ⛔ |
+| Network interface address inventory | ✅ read-only | ⛔ | ⛔ |
+| Configured DNS resolver inventory | ✅ read-only | ⛔ | ⛔ |
+| DNS trust / reputation verdicts | ⬜ | ⬜ | ⬜ |
 | Network discovery / port scanning | ⬜ | ⬜ | ⬜ |
 | Privacy / app permission audit | 🟡 core signals | ⛔ | ⛔ |
 | Account security integrations | ⬜ | ⬜ | ⬜ |

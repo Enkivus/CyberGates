@@ -234,6 +234,26 @@ pub struct NetworkConnection {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct NetworkInterface {
+    pub name: String,
+    pub addresses: Vec<String>,
+    pub up: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NetworkSnapshot {
+    pub available: bool,
+    pub interfaces: Vec<NetworkInterface>,
+    pub dns_servers: Vec<String>,
+    pub fetched_at: String,
+    pub source: String,
+    pub scope_note: String,
+    pub warnings: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct InstalledApp {
     pub name: String,
     pub version: Option<String>,

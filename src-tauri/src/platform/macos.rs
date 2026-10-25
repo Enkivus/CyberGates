@@ -5,7 +5,7 @@ use std::time::Duration;
 use crate::error::{AppError, AppResult};
 use crate::models::{
     now_rfc3339, CheckResult, CheckStatus, FirewallRule, FirewallSnapshot, InstalledApp,
-    NetworkConnection, Severity, StartupInventory, StartupItem,
+    NetworkConnection, NetworkInterface, NetworkSnapshot, Severity, StartupInventory, StartupItem,
 };
 use crate::platform::PlatformAudit;
 use crate::security::process::{run_optional, run_optional_with_limit, CommandOutput};
@@ -210,6 +210,110 @@ impl PlatformAudit for MacOsAdapter {
         connections.truncate(500);
         Ok(connections)
     }
+
+    fn network_snapshot(&self) -> AppResult<NetworkSnapshot> {
+        let ifconfig = run_optional_with_limit(
+            "/sbin/ifconfig",
+            &["-a"],
+            Duration::from_secs(8),
+            2 * 1024 * 1024,
+        );
+        let dns = run_optional_with_limit(
+            "/usr/sbin/scutil",
+            &["--dns"],
+            Duration::from_secs(8),
+            2 * 1024 * 1024,
+        );
+        let mut warnings = Vec::new();
+        let interfaces = match ifconfig.filter(|output| output.success) {
+            Some(output) => parse_interfaces(&output.stdout),
+            None => {
+                warnings.push("Interface configuration could not be read.".to_string());
+                Vec::new()
+            }
+        };
+        let dns_servers = match dns.filter(|output| output.success) {
+            Some(output) => parse_dns_servers(&output.stdout),
+            None => {
+                warnings.push("DNS resolver configuration could not be read.".to_string());
+                Vec::new()
+            }
+        };
+        let available = warnings.len() < 2;
+        Ok(NetworkSnapshot {
+            available,
+            interfaces,
+            dns_servers,
+            fetched_at: now_rfc3339(),
+            source: "macOS ifconfig and system resolver configuration".to_string(),
+            scope_note: "Read-only local interface addresses and configured DNS resolver addresses. DNS servers are reported as configured; CyberGates does not assess their trustworthiness or intercept DNS traffic.".to_string(),
+            warnings,
+        })
+    }
+}
+
+fn parse_interfaces(text: &str) -> Vec<NetworkInterface> {
+    let mut interfaces: Vec<NetworkInterface> = Vec::new();
+    for line in text.lines() {
+        if !line.starts_with(' ') && !line.starts_with('\t') && line.contains(':') {
+            let name = line.split(':').next().unwrap_or_default().trim();
+            if !name.is_empty() && name.len() <= 64 {
+                let up = line
+                    .split('<')
+                    .nth(1)
+                    .and_then(|flags| flags.split('>').next())
+                    .is_some_and(|flags| flags.split(',').any(|flag| flag == "UP"));
+                interfaces.push(NetworkInterface {
+                    name: name.to_string(),
+                    addresses: Vec::new(),
+                    up,
+                });
+            }
+            continue;
+        }
+        let Some(interface) = interfaces.last_mut() else {
+            continue;
+        };
+        let trimmed = line.trim();
+        let address = trimmed
+            .strip_prefix("inet ")
+            .and_then(|rest| rest.split_whitespace().next())
+            .or_else(|| {
+                trimmed
+                    .strip_prefix("inet6 ")
+                    .and_then(|rest| rest.split_whitespace().next())
+            });
+        if let Some(address) = address {
+            if !interface
+                .addresses
+                .iter()
+                .any(|existing| existing == address)
+            {
+                interface.addresses.push(address.to_string());
+            }
+        }
+    }
+    interfaces.retain(|interface| interface.up || !interface.addresses.is_empty());
+    interfaces
+}
+
+fn parse_dns_servers(text: &str) -> Vec<String> {
+    let mut servers = Vec::new();
+    for line in text.lines() {
+        let Some((key, value)) = line.split_once(':') else {
+            continue;
+        };
+        if key.trim().starts_with("nameserver[") {
+            let server = value.trim();
+            if !server.is_empty()
+                && server.len() <= 128
+                && !servers.iter().any(|item| item == server)
+            {
+                servers.push(server.to_string());
+            }
+        }
+    }
+    servers
 }
 
 fn startup_item(path: &Path, scope: &str) -> Option<StartupItem> {
@@ -987,5 +1091,22 @@ mod tests {
         assert_eq!(connections[0].remote_address, "1.1.1.1:443");
         assert_eq!(connections[0].state, "ESTABLISHED");
         assert_eq!(connections[1].local_address, "*:49404");
+    }
+
+    #[test]
+    fn parses_interface_addresses_and_state() {
+        let interfaces = parse_interfaces("en0: flags=8863<UP,BROADCAST,RUNNING,SIMPLEX>\n\tinet 192.168.1.20 netmask 0xffffff00\n\tinet6 fe80::1%en0 prefixlen 64\nlo0: flags=8049<UP,LOOPBACK,RUNNING>\n\tinet 127.0.0.1 netmask 0xff000000\n");
+        assert_eq!(interfaces.len(), 2);
+        assert_eq!(interfaces[0].name, "en0");
+        assert!(interfaces[0].up);
+        assert_eq!(interfaces[0].addresses, ["192.168.1.20", "fe80::1%en0"]);
+        assert_eq!(interfaces[1].name, "lo0");
+        assert_eq!(interfaces[1].addresses, ["127.0.0.1"]);
+    }
+
+    #[test]
+    fn parses_dns_resolvers_without_duplicates() {
+        let servers = parse_dns_servers("resolver #1\n  nameserver[0] : 192.168.1.1\n  nameserver[1] : 1.1.1.1\nresolver #2\n  nameserver[0] : 192.168.1.1\n");
+        assert_eq!(servers, ["192.168.1.1", "1.1.1.1"]);
     }
 }

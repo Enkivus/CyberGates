@@ -17,7 +17,11 @@ No bug bounty or response SLA is currently published.
   no device identifiers or inventory.
 - The webview has no shell/filesystem/HTTP plugins; only typed commands are exposed.
 - Subprocess execution uses fixed programs and argument arrays with hard timeouts and
-  bounded output capture. No shell string construction.
+  bounded output capture. Executable paths must be absolute, so the inherited `PATH`
+  cannot substitute a different binary. No shell string construction.
+- Unix local-data and report directories use mode `0700`; SQLite database and report
+  files use mode `0600`. New files are created exclusively, and existing database
+  symlinks are rejected before SQLite opens them.
 - SQLite uses migrations, foreign keys, WAL, and transactions. Audit runs are
   serialized; interrupted runs are marked on next startup.
 - Report fields are HTML-escaped for HTML exports.
@@ -88,13 +92,17 @@ changes, quarantine, process termination, network isolation) must:
   A warning is embedded in every export.
 - Deleting the app data directory removes findings, history, settings, and reports.
   This is irreversible.
-- Findings and logs are protected by OS file permissions; they are not encrypted at
-  rest in v0.1.0. Do not rely on them for highly sensitive environments.
+- Findings, logs, and reports are not encrypted at rest in v0.1.0. On Unix, the app
+  data and log directories are restricted to the current user; the main SQLite file
+  and exported reports are also restricted. On Windows, this version relies on the
+  permissions inherited from the per-user application-data directories. Do not rely
+  on these files for highly sensitive environments.
 
 ## Limitations to disclose to users
 
 - Passing posture checks does not mean the device is malware-free.
 - Backup metadata checks do not prove a restore works.
-- Vulnerability and malware features are not implemented.
+- Malware scanning and broad vulnerability assessment are not implemented. The
+  optional Homebrew advisory matcher covers only a narrow, explicitly disclosed case.
 - Windows and Linux have no native audit adapter yet.
 - Unsigned builds have no verified publisher identity.

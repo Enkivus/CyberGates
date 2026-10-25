@@ -121,6 +121,22 @@ export interface NetworkConnection {
   process: string | null;
 }
 
+export interface NetworkInterface {
+  name: string;
+  addresses: string[];
+  up: boolean;
+}
+
+export interface NetworkSnapshot {
+  available: boolean;
+  interfaces: NetworkInterface[];
+  dnsServers: string[];
+  fetchedAt: string;
+  source: string;
+  scopeNote: string;
+  warnings: string[];
+}
+
 export interface ModuleStatus {
   id: string;
   name: string;

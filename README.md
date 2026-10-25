@@ -1,126 +1,113 @@
 # CyberGates
 
-Cross-platform, local-first cybersecurity command center. CyberGates inspects this
-device's security configuration, explains what it finds, and tracks the results over
-time. The desktop shell is Tauri 2, the backend is Rust, and the UI is React +
-TypeScript.
+CyberGates is a local-first desktop app for inspecting a computer’s security
+configuration and understanding the evidence behind each result. It is built with
+Tauri 2, Rust, React, and TypeScript.
 
-> **Status: early preview (v0.1.0).** Posture auditing, process/connection inventory,
-> installed-software inventory, limited Homebrew advisory matching, persisted findings,
-> and JSON/HTML audit reports are real. Malware scanning, complete vulnerability
-> coverage, firewall changes, event monitoring, incident response, AI, and multi-device
-> management are **not implemented**. The UI states this explicitly.
+> **Preview software — v0.1.0.** CyberGates currently has a verified native security
+> adapter for macOS. Windows and Linux builds do not yet perform native posture audits.
+> This is not antivirus software and does not claim that a device is malware-free.
 
-CyberGates never fabricates scan results, protection status, or scores. Unsupported
-capabilities are shown as unavailable or planned.
+## What works today
 
-## Implemented today
+- Explainable macOS posture audit for firewall state, FileVault, SIP, Gatekeeper,
+  supported OS version, screen lock, automatic updates, remote access, guest account,
+  backup metadata, and XProtect presence.
+- System and process inventory, launchd startup-file inventory, and read-only TCP/UDP
+  socket inventory.
+- Read-only network interface and configured DNS resolver inventory on macOS. Resolver
+  addresses are shown as configured; CyberGates does not rate their trustworthiness.
+- Installed application and Homebrew inventory, plus optional Homebrew advisory
+  matching. Matching is intentionally limited and does not cover all applications or
+  package managers.
+- Read-only macOS Application Firewall settings and per-application exceptions.
+- Local audit history, findings, configurable retention, activity log, and JSON/HTML
+  reports.
+- Dark and light themes, searchable views, and explicit unavailable/planned states for
+  capabilities that are not operational.
 
-- Explainable security score derived from weighted, documented checks
-- macOS posture audit: application firewall + stealth mode, FileVault, SIP,
-  Gatekeeper, macOS version support, screen-lock delay, automatic update schedule,
-  SSH/screen-sharing exposure, guest account, Time Machine metadata, XProtect presence
-- System inventory (OS, kernel, CPU, memory, uptime)
-- Live process inventory with executable paths
-- Read-only TCP/UDP connection inventory with owning process where exposed
-- Installed software inventory (macOS applications + Homebrew) with signature/trust data
-- Optional Homebrew advisory matching against a downloaded OSV-format feed, limited to
-  same-version revision patches with explicit freshness and coverage warnings
-- Read-only macOS Application Firewall snapshot with per-app allow/block rules
-- SQLite persistence with migrations, findings history, retention pruning, audit log
-- Sanitized JSON and HTML audit reports
-- Dark/light UI, all 15 product sections discoverable, honest capability states
-- Rust unit tests and frontend tests
+## Not implemented
 
-## Not implemented yet
-
-Malware/file scanning, real-time protection, quarantine, complete vulnerability
-coverage (applications, other package managers, reliable ranges), firewall rule
-changes, event monitoring, incident response actions, privacy/app permission auditing, backup restore verification, security toolkit, account
-integrations, AI assistant, and multi-device/cloud features. Windows and Linux
-currently have **no native audit adapter**; they start with an explicit unsupported
-state rather than guessed results.
-
-See [`docs/FEATURE_STATUS.md`](docs/FEATURE_STATUS.md) and
-[`docs/CAPABILITY_MATRIX.md`](docs/CAPABILITY_MATRIX.md).
+Malware scanning, real-time protection, quarantine, broad vulnerability assessment,
+DNS reputation, network discovery or port scanning, firewall changes, event monitoring,
+incident response, app-permission auditing, backup restore verification, account
+integrations, AI, cloud sync, and multi-device management are not implemented. Read
+[`docs/FEATURE_STATUS.md`](docs/FEATURE_STATUS.md) and
+[`docs/CAPABILITY_MATRIX.md`](docs/CAPABILITY_MATRIX.md) for scope and platform status.
 
 ## Requirements
 
-- Rust stable (tested with 1.99)
-- Node.js 22+ and npm
-- Platform toolchain for Tauri:
-  - **macOS:** Xcode Command Line Tools (`xcode-select --install`)
-  - **Windows:** Microsoft C++ Build Tools + WebView2 (bundled with modern Windows)
-  - **Linux:** `libwebkit2gtk-4.1-dev`, `build-essential`, `curl`, `wget`, `file`,
-    `libxdo-dev`, `libssl-dev`, `libayatana-appindicator3-dev`, `librsvg2-dev`,
-    `patchelf`
+- Rust stable and Node.js 22 or newer with npm
+- Tauri platform prerequisites:
+  - **macOS:** Xcode Command Line Tools
+  - **Windows:** Microsoft C++ Build Tools and WebView2
+  - **Linux:** WebKitGTK 4.1, GTK, AppIndicator, OpenSSL, and build tools. The CI
+    workflow lists the Ubuntu packages used for builds.
 
-## Development
+## Run locally
 
 ```bash
-npm install
+npm ci
 npm run tauri dev
 ```
 
-The frontend alone can be run with `npm run dev`, but every data view requires the
-Rust backend and will show an honest backend-unavailable error in a plain browser.
+`npm run dev` starts the frontend by itself; native data commands require the Tauri
+backend.
 
 ## Build
 
 ```bash
-npm run tauri build           # release app + platform bundles
-npm run tauri build -- --debug
+npm run tauri build
 ```
 
-Artifacts (current machine):
+The Tauri bundler writes platform artifacts under `src-tauri/target/release/bundle/`.
+Preview artifacts are unsigned and not notarized. See
+[`docs/SECURITY.md`](docs/SECURITY.md) before distributing a build.
 
-- macOS app: `src-tauri/target/release/bundle/macos/CyberGates.app`
-- macOS DMG: `src-tauri/target/release/bundle/dmg/`
-- Debug builds: replace `release` with `debug`
-
-Packages are **unsigned**. Signing and notarization instructions live in
-[`docs/SECURITY.md`](docs/SECURITY.md); never treat an unsigned build as
-production-ready.
-
-## Tests and checks
+## Verify changes
 
 ```bash
 npm run typecheck
 npm run lint
 npm test
+npm run build
 cargo fmt --check --manifest-path src-tauri/Cargo.toml
 cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
 cargo test --manifest-path src-tauri/Cargo.toml
 ```
 
-CI runs these on macOS, Windows, and Linux — see `.github/workflows/ci.yml`.
+The GitHub Actions matrix is defined in
+[`.github/workflows/ci.yml`](.github/workflows/ci.yml). Passing local checks does not
+mean the cross-platform matrix has run; check the repository’s Actions page for its
+current status.
 
-## Local data
+## Local data and privacy
 
-| Platform | Data | Logs |
-|---|---|---|
-| macOS | `~/Library/Application Support/com.cybergates.app/` | `~/Library/Logs/com.cybergates.app/` |
-| Windows | `%APPDATA%\com.cybergates.app\` | `%LOCALAPPDATA%\com.cybergates.app\logs\` |
-| Linux | `~/.local/share/com.cybergates.app/` | `~/.local/share/com.cybergates.app/logs/` |
+CyberGates stores its SQLite database, audit history, settings, and reports in the
+application data directory selected by Tauri. On macOS this is normally
+`~/Library/Application Support/com.cybergates.app/`; logs are normally in
+`~/Library/Logs/com.cybergates.app/`. Unix data directories are restricted to the
+current user. Reports may include hostnames, paths, processes, and network details;
+review them before sharing.
 
-The SQLite database stores findings, audits, settings, and the privileged-action
-audit log. Exported reports go to the `reports/` subdirectory. Reports may contain
-sensitive system information; review before sharing.
+The app has no active telemetry, cloud sync, or AI service. Updating the optional
+Homebrew advisory database is the only feature that makes an outbound request; it
+downloads public advisory data over HTTPS and does not upload device inventory. See
+[`docs/THREAT_MODEL.md`](docs/THREAT_MODEL.md) for trust boundaries and limitations.
 
-## Privacy and security
+## Contributing
 
-CyberGates is local-first. No telemetry, cloud sync, or AI provider is active. It
-does not read passwords, recovery keys, or authentication codes. Privileged operations
-are not exposed to the webview; all data access goes through typed Tauri commands with
-validation. See [`docs/THREAT_MODEL.md`](docs/THREAT_MODEL.md).
+Keep findings evidence-based and make unsupported checks explicitly unavailable. Do
+not add destructive actions, broad scans, or external data uploads without documenting
+their scope, privacy impact, failure behavior, and verification. See the architecture,
+security, and feature-status documents in [`docs/`](docs/).
 
-## Documentation
+## Security reports
 
-- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
-- [`docs/THREAT_MODEL.md`](docs/THREAT_MODEL.md)
-- [`docs/CAPABILITY_MATRIX.md`](docs/CAPABILITY_MATRIX.md)
-- [`docs/FEATURE_STATUS.md`](docs/FEATURE_STATUS.md)
-- [`docs/SECURITY.md`](docs/SECURITY.md)
+Please report vulnerabilities privately through the repository host’s security
+reporting feature rather than posting exploit details publicly. The project has no
+published bug bounty or response SLA. More information is in
+[`docs/SECURITY.md`](docs/SECURITY.md).
 
 ## License
 
