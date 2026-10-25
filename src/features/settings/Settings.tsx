@@ -323,9 +323,10 @@ export function Settings({
                   <p>
                     CyberGates v0.1.0 is an early build. Posture auditing, process and
                     connection inventory, persisted findings, and audit reports are real.
-                    Malware scanning, vulnerability matching, firewall changes, event
-                    monitoring, incident response, AI, and multi-device management are not
-                    implemented.
+                    Malware scanning, complete vulnerability coverage, firewall changes,
+                    event monitoring, incident response, AI, and multi-device management
+                    are not implemented. Homebrew advisory matching is limited and does
+                    not establish that an application is vulnerable.
                   </p>
                 </div>
                 <div className="flex items-start gap-3">

@@ -965,6 +965,16 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "reads startup plist file names from standard macOS directories"]
+    fn live_startup_inventory_smoke() {
+        let inventory = MacOsAdapter
+            .startup_inventory()
+            .expect("live startup inventory");
+        assert!(inventory.available);
+        assert_eq!(inventory.source, "macOS launchd property-list directories");
+    }
+
+    #[test]
     fn parses_lsof_lines() {
         let output = CommandOutput {
             success: true,

@@ -57,7 +57,7 @@ Status is based on code presence **and verification**, not screen existence.
 - 🟡 macOS launchd file inventory for standard user/system property-list directories;
   lists file names, paths, scope, and modification time only
 - ⬜ Loaded service state, all macOS Login Items, and Windows/Linux startup sources
-- ⬜ Security event monitoring, loaded service state, behavior detection
+- ⬜ Security event monitoring and behavior detection
 - ⛔ No process termination yet
 
 ## 8. Privacy

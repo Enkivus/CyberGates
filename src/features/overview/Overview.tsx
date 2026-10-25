@@ -332,7 +332,7 @@ export function Overview() {
             <EmptyState
               icon={<CheckCircle2 className="h-5 w-5 text-ok" aria-hidden />}
               title="No issues reported by implemented checks"
-              description="This is not a clean bill of health. Malware scanning, vulnerability matching, and event monitoring are not implemented yet, so they cannot contribute findings."
+              description="This is not a clean bill of health. Homebrew advisory matching is limited and is shown separately; it is not part of this posture audit. Malware scanning and event monitoring are not implemented yet."
             />
           ) : (
             <div className="divide-y divide-line/70">
