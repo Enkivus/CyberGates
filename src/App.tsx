@@ -20,9 +20,11 @@ import { Vulnerabilities } from "./features/vulnerabilities/Vulnerabilities";
 import { Firewall } from "./features/firewall/Firewall";
 import { api } from "./lib/api";
 import { applyTheme, initialTheme, type Theme } from "./lib/theme";
+import { useToast } from "./components/ToastProvider";
 
 export default function App() {
   const [theme, setTheme] = useState<Theme>(() => initialTheme());
+  const { showToast } = useToast();
 
   useEffect(() => {
     applyTheme(theme);
@@ -32,9 +34,9 @@ export default function App() {
     setTheme(next);
     applyTheme(next);
     void api.updateSetting("theme", next).catch(() => {
-      // Theme is already applied locally; persistence failure is non-fatal.
+      showToast("Theme changed for this session, but the preference could not be saved.", "warning");
     });
-  }, []);
+  }, [showToast]);
 
   return (
     <HashRouter>

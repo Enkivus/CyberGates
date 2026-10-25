@@ -201,6 +201,26 @@ pub struct ProcessInfo {
     pub run_time_seconds: u64,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StartupItem {
+    pub name: String,
+    pub path: String,
+    pub scope: String,
+    pub modified_at: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StartupInventory {
+    pub available: bool,
+    pub items: Vec<StartupItem>,
+    pub fetched_at: String,
+    pub source: String,
+    pub scope_note: String,
+    pub warnings: Vec<String>,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NetworkConnection {

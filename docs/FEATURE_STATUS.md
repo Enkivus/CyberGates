@@ -1,6 +1,6 @@
 # Feature Status
 
-Last updated: 2026-10-23 · v0.1.0
+Last updated: 2026-10-25 · v0.1.0
 
 Status is based on code presence **and verification**, not screen existence.
 ✅ implemented · 🟡 partial · ⬜ not started · ⛔ unavailable by design
@@ -102,6 +102,8 @@ Status is based on code presence **and verification**, not screen existence.
 
 ## Engineering quality
 
+- ✅ Shared render error boundary, dismissible toast notifications, and accessible
+  confirmation dialog; retention reductions are confirmed before pruning can occur
 - ✅ Rust unit tests for scoring, DB, validation, lsof parsing
 - ✅ Frontend unit tests for formatting utilities
 - ✅ `cargo fmt`, `cargo clippy -D warnings`, `cargo test`

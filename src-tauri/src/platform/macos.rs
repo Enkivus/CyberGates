@@ -1,9 +1,11 @@
+use std::fs;
+use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use crate::error::{AppError, AppResult};
 use crate::models::{
     now_rfc3339, CheckResult, CheckStatus, FirewallRule, FirewallSnapshot, InstalledApp,
-    NetworkConnection, Severity,
+    NetworkConnection, Severity, StartupInventory, StartupItem,
 };
 use crate::platform::PlatformAudit;
 use crate::security::process::{run_optional, run_optional_with_limit, CommandOutput};
@@ -117,6 +119,73 @@ impl PlatformAudit for MacOsAdapter {
         Ok(apps)
     }
 
+    fn startup_inventory(&self) -> AppResult<StartupInventory> {
+        let mut directories = vec![
+            (PathBuf::from("/Library/LaunchAgents"), "System"),
+            (PathBuf::from("/Library/LaunchDaemons"), "System"),
+        ];
+        if let Some(home) = dirs::home_dir() {
+            directories.push((home.join("Library/LaunchAgents"), "Current user"));
+        }
+
+        let mut items = Vec::new();
+        let mut unreadable = 0;
+        let mut examined = 0;
+        let mut truncated = false;
+        for (directory, scope) in &directories {
+            match fs::read_dir(directory) {
+                Ok(entries) => {
+                    for entry in entries {
+                        if examined >= 5000 {
+                            truncated = true;
+                            break;
+                        }
+                        examined += 1;
+                        let Ok(entry) = entry else {
+                            unreadable += 1;
+                            continue;
+                        };
+                        if let Some(item) = startup_item(&entry.path(), scope) {
+                            items.push(item);
+                        }
+                        if items.len() >= 1000 {
+                            break;
+                        }
+                    }
+                }
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+                Err(_) => unreadable += 1,
+            }
+            if items.len() >= 1000 {
+                break;
+            }
+        }
+
+        items.sort_by(|a, b| {
+            a.scope
+                .cmp(&b.scope)
+                .then_with(|| a.name.to_lowercase().cmp(&b.name.to_lowercase()))
+        });
+        let warnings = if unreadable > 0 {
+            vec![format!("{unreadable} startup directory entries could not be read.")]
+        } else {
+            Vec::new()
+        };
+        let mut warnings = warnings;
+        if truncated {
+            warnings.push("Inventory stopped after examining 5,000 directory entries.".to_string());
+        }
+
+        Ok(StartupInventory {
+            available: true,
+            items,
+            fetched_at: now_rfc3339(),
+            source: "macOS launchd property-list directories".to_string(),
+            scope_note: "Lists regular .plist files in /Library/LaunchAgents, /Library/LaunchDaemons, and the current user's ~/Library/LaunchAgents. This does not include every macOS Login Item, prove that a job is loaded, or assess the referenced program.".to_string(),
+            warnings,
+        })
+    }
+
     fn connections(&self) -> AppResult<Vec<NetworkConnection>> {
         let mut connections = Vec::new();
         for args in [
@@ -139,6 +208,31 @@ impl PlatformAudit for MacOsAdapter {
         connections.truncate(500);
         Ok(connections)
     }
+}
+
+fn startup_item(path: &Path, scope: &str) -> Option<StartupItem> {
+    if path.extension()?.to_string_lossy().to_ascii_lowercase() != "plist" {
+        return None;
+    }
+    let metadata = fs::symlink_metadata(path).ok()?;
+    if !metadata.file_type().is_file() {
+        return None;
+    }
+    let name = path.file_stem()?.to_string_lossy().trim().to_string();
+    if name.is_empty() {
+        return None;
+    }
+    let modified_at = metadata
+        .modified()
+        .ok()
+        .map(chrono::DateTime::<chrono::Utc>::from)
+        .map(|time| time.to_rfc3339());
+    Some(StartupItem {
+        name,
+        path: path.to_string_lossy().to_string(),
+        scope: scope.to_string(),
+        modified_at,
+    })
 }
 
 fn out(program: &str, args: &[&str]) -> Option<CommandOutput> {
@@ -823,6 +917,33 @@ mod tests {
         assert_eq!(apps.len(), 2);
         assert_eq!(apps[0].source, "Homebrew");
         assert_eq!(apps[1].version.as_deref(), Some("3.5.1"));
+    }
+
+    #[test]
+    fn startup_inventory_only_includes_regular_plist_files() {
+        use std::os::unix::fs::symlink;
+
+        let directory = std::env::temp_dir().join(format!(
+            "cybergates-startup-test-{}",
+            uuid::Uuid::new_v4()
+        ));
+        fs::create_dir_all(&directory).unwrap();
+        let plist = directory.join("com.example.agent.plist");
+        let other = directory.join("notes.txt");
+        let link = directory.join("linked-agent.plist");
+        fs::write(&plist, "fixture plist contents").unwrap();
+        fs::write(&other, "not a startup file").unwrap();
+        symlink(&plist, &link).unwrap();
+
+        let item = startup_item(&plist, "Current user").unwrap();
+        assert_eq!(item.name, "com.example.agent");
+        assert_eq!(item.scope, "Current user");
+        assert_eq!(item.path, plist.to_string_lossy());
+        assert!(item.modified_at.is_some());
+        assert!(startup_item(&other, "Current user").is_none());
+        assert!(startup_item(&link, "Current user").is_none());
+
+        fs::remove_dir_all(directory).unwrap();
     }
 
     #[test]

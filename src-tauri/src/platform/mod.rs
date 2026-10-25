@@ -1,5 +1,8 @@
 use crate::error::AppResult;
-use crate::models::{CheckResult, FirewallSnapshot, InstalledApp, NetworkConnection};
+use crate::models::{
+    now_rfc3339, CheckResult, FirewallSnapshot, InstalledApp, NetworkConnection,
+    StartupInventory,
+};
 
 pub trait PlatformAudit: Send + Sync {
     fn platform_name(&self) -> &'static str;
@@ -16,6 +19,17 @@ pub trait PlatformAudit: Send + Sync {
 
     fn firewall_snapshot(&self) -> AppResult<Option<FirewallSnapshot>> {
         Ok(None)
+    }
+
+    fn startup_inventory(&self) -> AppResult<StartupInventory> {
+        Ok(StartupInventory {
+            available: false,
+            items: Vec::new(),
+            fetched_at: now_rfc3339(),
+            source: "No native startup-item provider".to_string(),
+            scope_note: "Startup-item inspection is unavailable on this platform.".to_string(),
+            warnings: Vec::new(),
+        })
     }
 }
 

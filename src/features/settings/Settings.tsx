@@ -23,6 +23,9 @@ import {
   PanelHeader,
 } from "../../components/ui";
 import { formatBytes } from "../../lib/format";
+import { ConfirmDialog } from "../../components/ConfirmDialog";
+import { useToast } from "../../components/ToastProvider";
+import { requiresRetentionConfirmation } from "../../lib/retention";
 
 function Toggle({
   checked,
@@ -69,7 +72,8 @@ export function Settings({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState<string | null>(null);
-  const [message, setMessage] = useState<string | null>(null);
+  const [confirmRetention, setConfirmRetention] = useState(false);
+  const { showToast } = useToast();
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -97,10 +101,9 @@ export function Settings({
   const save = async (key: string, value: string, successMessage: string) => {
     setSaving(key);
     setError(null);
-    setMessage(null);
     try {
       await api.updateSetting(key, value);
-      setMessage(successMessage);
+      showToast(successMessage, "success");
       if (key === "retentionDays") {
         setStorage((current) =>
           current ? { ...current, retentionDays: Number(value) } : current,
@@ -113,6 +116,25 @@ export function Settings({
     }
   };
 
+  const saveRetention = () => {
+    const nextRetention = Math.min(3650, Math.max(1, Math.round(retention)));
+    setConfirmRetention(false);
+    void save(
+      "retentionDays",
+      String(nextRetention),
+      "Retention updated and expired records pruned.",
+    );
+  };
+
+  const handleRetentionSave = () => {
+    const nextRetention = Math.min(3650, Math.max(1, Math.round(retention)));
+    if (storage && requiresRetentionConfirmation(storage.retentionDays, nextRetention)) {
+      setConfirmRetention(true);
+      return;
+    }
+    saveRetention();
+  };
+
   return (
     <div className="fade-in">
       <PageHeader
@@ -121,12 +143,6 @@ export function Settings({
       />
 
       {error ? <ErrorState message={error} onRetry={() => void load()} /> : null}
-      {message ? (
-        <div className="mb-5 rounded-xl border border-ok/30 bg-ok-soft px-4 py-3 text-xs font-medium text-ok">
-          {message}
-        </div>
-      ) : null}
-
       {loading && !storage ? (
         <Panel>
           <LoadingState label="Loading settings" />
@@ -221,13 +237,7 @@ export function Settings({
                   type="button"
                   className="btn btn-primary"
                   disabled={saving === "retentionDays"}
-                  onClick={() =>
-                    void save(
-                      "retentionDays",
-                      String(Math.min(3650, Math.max(1, Math.round(retention)))),
-                      "Retention updated and expired records pruned.",
-                    )
-                  }
+                  onClick={handleRetentionSave}
                 >
                   <Save className="h-4 w-4" aria-hidden />
                   Save
@@ -343,6 +353,15 @@ export function Settings({
           </Panel>
         </div>
       )}
+      <ConfirmDialog
+        open={confirmRetention}
+        title="Reduce data retention?"
+        description="This may permanently remove local audit and activity records older than the new retention period. Continue with the shorter period?"
+        confirmLabel="Reduce retention"
+        destructive
+        onConfirm={saveRetention}
+        onCancel={() => setConfirmRetention(false)}
+      />
     </div>
   );
 }
