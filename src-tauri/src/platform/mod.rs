@@ -1,7 +1,6 @@
 use crate::error::AppResult;
 use crate::models::{
-    now_rfc3339, CheckResult, FirewallSnapshot, InstalledApp, NetworkConnection,
-    StartupInventory,
+    now_rfc3339, CheckResult, FirewallSnapshot, InstalledApp, NetworkConnection, StartupInventory,
 };
 
 pub trait PlatformAudit: Send + Sync {

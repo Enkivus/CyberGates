@@ -167,7 +167,9 @@ impl PlatformAudit for MacOsAdapter {
                 .then_with(|| a.name.to_lowercase().cmp(&b.name.to_lowercase()))
         });
         let warnings = if unreadable > 0 {
-            vec![format!("{unreadable} startup directory entries could not be read.")]
+            vec![format!(
+                "{unreadable} startup directory entries could not be read."
+            )]
         } else {
             Vec::new()
         };
@@ -923,10 +925,8 @@ mod tests {
     fn startup_inventory_only_includes_regular_plist_files() {
         use std::os::unix::fs::symlink;
 
-        let directory = std::env::temp_dir().join(format!(
-            "cybergates-startup-test-{}",
-            uuid::Uuid::new_v4()
-        ));
+        let directory =
+            std::env::temp_dir().join(format!("cybergates-startup-test-{}", uuid::Uuid::new_v4()));
         fs::create_dir_all(&directory).unwrap();
         let plist = directory.join("com.example.agent.plist");
         let other = directory.join("notes.txt");
