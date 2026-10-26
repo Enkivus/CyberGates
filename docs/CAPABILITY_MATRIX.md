@@ -39,7 +39,7 @@ Legend: ✅ implemented and tested · 🟡 partial · ⛔ explicitly unavailable
 | Network connection inventory | ✅ read-only | ⛔ | ⛔ |
 | Network interface address inventory | ✅ read-only | ⛔ | 🟡 read-only |
 | Configured DNS resolver inventory | ✅ read-only | ⛔ | 🟡 `/etc/resolv.conf` (may be a local stub) |
-| Startup inventory | 🟡 launchd files and jobs | ⛔ | 🟡 XDG files and enabled systemd units |
+| Startup inventory | 🟡 launchd files and jobs | 🟡 Run/RunOnce registry value names only | 🟡 XDG files and enabled systemd units |
 | DNS trust / reputation verdicts | ⬜ | ⬜ | ⬜ |
 | Network discovery / port scanning | ⬜ | ⬜ | ⬜ |
 | Privacy / app permission audit | 🟡 core signals | ⛔ | ⛔ |
@@ -67,8 +67,9 @@ Legend: ✅ implemented and tested · 🟡 partial · ⛔ explicitly unavailable
 - Linux exposes read-only interface/DNS, startup-file/enabled-unit, and current-user
   systemd service inventories. Its posture adapter still reports a single
   "platform audit unavailable" check with score `null`.
-- Windows has no native adapter and reports a single "platform audit unavailable"
-  check with score `null`.
+- Windows reports a single "platform audit unavailable" check with score `null`, and
+  separately lists current-user/local-machine Run/RunOnce registry value names. It does
+  not inspect command data, startup folders, scheduled tasks, or services.
 - System inventory, process list, and reports still work through cross-platform Rust
   libraries where available.
 - Linux network connection ownership is not implemented; other platforms without a

@@ -115,15 +115,17 @@ mode is on. Retention pruning deletes old audits (findings cascade) and log entr
 ## Platform model
 
 `PlatformAudit` exposes `platform_name`, `supported`, `notes`, `audit`, `connections`,
-`installed_apps`, and `firewall_snapshot`. Each OS must implement a real adapter and be
-tested before claiming support.
+`installed_apps`, `firewall_snapshot`, and bounded startup/service inventories. Each OS
+must implement and be tested before claiming posture-audit support.
 
 - **macOS:** read-only native tooling; implemented.
 - **Linux:** read-only network address/DNS configuration, XDG autostart names, enabled
   systemd unit files, and current-user loaded service states are available. The posture
   audit remains unavailable and makes no security score or protection claim.
-- **Windows:** compile and run, but report "adapter unavailable" for native audits;
-  no posture score or protection claim is made.
+- **Windows:** current-user and local-machine Run/RunOnce registry value names are
+  listed read-only. Configured commands, startup folders, scheduled tasks, and service
+  state are not inspected; the posture audit remains unavailable and no score or
+  protection claim is made.
 
 Adding an adapter must not change the UI contract; capability states are data.
 

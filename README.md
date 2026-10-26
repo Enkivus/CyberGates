@@ -15,6 +15,9 @@ Tauri 2, Rust, React, and TypeScript.
   backup metadata, and XProtect presence.
 - System and process inventory, macOS launchd startup-file and current-user loaded-job
   inventories, and read-only TCP/UDP socket inventory.
+- Windows read-only startup inventory for current-user and local-machine Run/RunOnce
+  registry entry names. Command data is omitted; startup folders, scheduled tasks,
+  services, and Windows posture checks remain unavailable.
 - Linux read-only interface/DNS configuration, XDG autostart file names, enabled
   systemd service unit files, and current-user loaded service states. Linux posture
   security checks and socket ownership are not yet implemented.

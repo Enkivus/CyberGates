@@ -22,7 +22,9 @@ versus planned. It must be updated whenever a new privileged capability is added
    it processes the content in the webview, caps files at 64 MiB, and sends no file
    contents or path through IPC.
 2. **Rust backend ↔ operating system.** Native tools and APIs are invoked with fixed
-   programs and argument arrays; output is untrusted data.
+   programs and argument arrays; output is untrusted data. On Windows, startup
+   inventory opens fixed Run/RunOnce registry keys with read-only access and reads
+   value names only; configured command data is not fetched or executed.
 3. **Backend ↔ local database/files.** Paths are app-controlled; reports are written
    only to the app data directory.
 4. **Backend ↔ external network.** Outbound requests are user-triggered: the advisory
@@ -40,6 +42,7 @@ versus planned. It must be updated whenever a new privileged capability is added
 | Command injection via IPC | Arbitrary code execution | No shell plugin; fixed programs + argument arrays; no user-controlled commands | Implemented |
 | Path traversal / symlink abuse | Read/write outside intended paths | Report paths are app-generated; `safe_absolute_path` helper validates future file ops; report format allowlist | Partial (file ops limited) |
 | Malicious/oversized tool output | Memory exhaustion, UI injection | Output capped (512 KiB default, bounded larger inventories); timeouts and Unix process-group cleanup on subprocesses; React escapes text | Implemented |
+| Startup registry data misleads the user | False assumptions about Windows startup behavior | Only Run/RunOnce value names and registry locations are shown; command data and execution state are omitted, and scope gaps are disclosed | Partial (no startup folders, tasks, services, or runtime verification) |
 | Unauthorized IPC / parameter abuse | Data tampering, expensive work | Typed commands, clamped limits, setting allowlist, audit concurrency guard | Implemented |
 | Database corruption / partial audit | Misleading history | WAL, migrations, transactions, interrupted-audit recovery | Implemented |
 | Sensitive data leakage via reports/logs | Privacy harm | Unix data/log/report directories are mode 0700; SQLite and report files are mode 0600; reports warn; the local log viewer is read-only, bounded, and rejects symlinks | Partial (not encrypted at rest; logs may contain paths/error details; Windows relies on inherited per-user ACLs) |

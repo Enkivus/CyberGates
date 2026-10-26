@@ -98,6 +98,7 @@ export function Monitoring() {
       `${item.name} ${item.path} ${item.scope}`.toLowerCase().includes(needle),
     );
   }, [startupInventory, startupQuery]);
+  const windowsStartupInventory = startupInventory?.source.startsWith("Windows") ?? false;
 
   const filteredServices = useMemo(() => {
     const needle = servicesQuery.trim().toLowerCase();
@@ -290,18 +291,18 @@ export function Monitoring() {
             ))}
             {filteredStartupItems.length === 0 ? (
               <EmptyState
-                title={startupInventory.items.length ? "No matching startup files" : "No startup files found"}
-                description={startupInventory.items.length ? "Try another filter." : "No regular property-list files were found in the inspected launchd directories."}
+                title={startupInventory.items.length ? "No matching startup entries" : "No startup entries found"}
+                description={startupInventory.items.length ? "Try another filter." : startupInventory.scopeNote}
               />
             ) : (
               <div className="overflow-x-auto">
                 <table className="table">
                   <thead>
                     <tr>
-                      <th>File name</th>
+                      <th>Entry name</th>
                       <th>Scope</th>
-                      <th>Modified</th>
-                      <th>Property-list file</th>
+                      {!windowsStartupInventory ? <th>Modified</th> : null}
+                      <th>Registry location / file path</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -309,9 +310,11 @@ export function Monitoring() {
                       <tr key={item.path}>
                         <td className="font-medium">{item.name}</td>
                         <td className="text-xs text-muted">{item.scope}</td>
-                        <td className="text-xs text-muted">
-                          {item.modifiedAt ? new Date(item.modifiedAt).toLocaleString() : "Unavailable"}
-                        </td>
+                        {!windowsStartupInventory ? (
+                          <td className="text-xs text-muted">
+                            {item.modifiedAt ? new Date(item.modifiedAt).toLocaleString() : "Unavailable"}
+                          </td>
+                        ) : null}
                         <td className="mono max-w-[34rem] break-all text-[11px] text-faint">
                           {item.path}
                         </td>
@@ -322,7 +325,7 @@ export function Monitoring() {
               </div>
             )}
             <p className="border-t border-line px-5 py-2 text-[10px] text-faint">
-              {startupInventory.items.length} files listed · refreshed {new Date(startupInventory.fetchedAt).toLocaleTimeString()}
+              {startupInventory.items.length} entries listed · refreshed {new Date(startupInventory.fetchedAt).toLocaleTimeString()}
             </p>
           </>
         ) : null}

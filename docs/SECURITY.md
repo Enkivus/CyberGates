@@ -112,6 +112,7 @@ changes, quarantine, process termination, network isolation) must:
 - Backup metadata checks do not prove a restore works.
 - Malware scanning and broad vulnerability assessment are not implemented. The
   optional Homebrew advisory matcher covers only a narrow, explicitly disclosed case.
-- Windows has no native audit adapter. Linux has partial read-only inventories but no
-  verified posture audit or security score.
+- Windows has no verified posture audit or security score; its partial startup view
+  lists Run/RunOnce registry value names only. Linux has partial read-only inventories
+  but no verified posture audit or security score.
 - Unsigned builds have no verified publisher identity.

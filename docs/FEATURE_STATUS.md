@@ -15,7 +15,8 @@ Status is based on code presence **and verification**, not screen existence.
 - ✅ Device snapshot and coverage disclosure
 - 🟡 Linux read-only network, startup, and current-user service inventories are available;
   verified Linux posture checks are still unavailable and no score is produced
-- ⛔ Windows has no native adapter and no score
+- 🟡 Windows has a read-only partial Run/RunOnce registry inventory; posture checks and
+  a security score remain unavailable
 
 ## 2. Threat Protection
 
@@ -75,6 +76,8 @@ Status is based on code presence **and verification**, not screen existence.
   system daemons and all Login Items are not covered
 - 🟡 Linux XDG autostart file names and enabled systemd service unit files; contents are
   not executed or interpreted, and enabled units do not necessarily run at boot
+- 🟡 Windows current-user and local-machine Run/RunOnce registry value names; command
+  values, startup folders, scheduled tasks, and services are not included
 - Linux desktop autostart coverage follows the [freedesktop autostart specification](https://specifications.freedesktop.org/autostart/latest/);
   the inventory intentionally reports candidate files rather than interpreting desktop-entry policy
 - ⬜ Security event monitoring and behavior detection

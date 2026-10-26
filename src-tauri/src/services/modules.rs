@@ -3,6 +3,7 @@ use crate::models::ModuleStatus;
 pub fn list() -> Vec<ModuleStatus> {
     let macos = cfg!(target_os = "macos");
     let linux = cfg!(target_os = "linux");
+    let windows = cfg!(target_os = "windows");
     vec![
         ModuleStatus {
             id: "overview".to_string(),
@@ -79,6 +80,8 @@ pub fn list() -> Vec<ModuleStatus> {
                 "Process inventory, launchd startup files, and current-user loaded jobs are available. System services, event monitoring, and behavioral detection are not implemented.".to_string()
             } else if linux {
                 "Process inventory, XDG autostart file listing, enabled systemd service units, and current-user loaded units are available. Event monitoring and behavioral detection are not implemented.".to_string()
+            } else if windows {
+                "Process inventory and a read-only inventory of Run/RunOnce registry value names are available. Startup folders, scheduled tasks, service state, event monitoring, and behavioral detection are not implemented.".to_string()
             } else {
                 "Process inventory is available; native startup and service inventories are not implemented on this platform.".to_string()
             },
