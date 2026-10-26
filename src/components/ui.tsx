@@ -223,11 +223,9 @@ export function ErrorState({
 export function ScoreRing({
   score,
   label,
-  size = 168,
 }: {
   score: number | null;
   label: string;
-  size?: number;
 }) {
   const radius = 62;
   const circumference = 2 * Math.PI * radius;
@@ -243,15 +241,24 @@ export function ScoreRing({
           : score >= 50
             ? "var(--warn)"
             : "var(--danger)";
+  const colorClass =
+    score === null
+      ? "text-muted"
+      : score >= 90
+        ? "text-ok"
+        : score >= 75
+          ? "text-accent"
+          : score >= 50
+            ? "text-warn"
+            : "text-danger";
 
   return (
     <div
-      className="relative flex shrink-0 items-center justify-center"
-      style={{ width: size, height: size }}
+      className="relative flex h-[168px] w-[168px] shrink-0 items-center justify-center"
       role="img"
       aria-label={`Security score ${score ?? "unknown"}, ${label}`}
     >
-      <svg width={size} height={size} viewBox="0 0 160 160" className="-rotate-90">
+      <svg width="168" height="168" viewBox="0 0 160 160" className="-rotate-90">
         <circle
           cx="80"
           cy="80"
@@ -270,11 +277,11 @@ export function ScoreRing({
           strokeLinecap="round"
           strokeDasharray={circumference}
           strokeDashoffset={offset}
-          style={{ transition: "stroke-dashoffset 700ms ease, stroke 300ms ease" }}
+          className="score-ring-value"
         />
       </svg>
       <div className="absolute flex flex-col items-center">
-        <span className="text-4xl font-semibold tracking-tight" style={{ color }}>
+        <span className={`text-4xl font-semibold tracking-tight ${colorClass}`}>
           {score ?? "—"}
         </span>
         <span className="mt-0.5 text-[11px] font-semibold uppercase tracking-[0.1em] text-muted">

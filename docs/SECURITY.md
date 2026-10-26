@@ -17,6 +17,9 @@ No bug bounty or response SLA is currently published.
   diagnostics disclose the submitted name to the configured resolver and target host;
   the app sends no inventory or device identifiers.
 - The webview has no shell/filesystem/HTTP plugins; only typed commands are exposed.
+- The production webview Content Security Policy disallows inline styles. The UI
+  uses external stylesheets and SVG presentation attributes; the development policy
+  permits inline styles for the Vite development server only.
 - Subprocess execution uses fixed programs and argument arrays with hard timeouts and
   bounded output capture. Executable paths must be absolute, so the inherited `PATH`
   cannot substitute a different binary. Unix subprocesses run in a dedicated process

@@ -54,6 +54,7 @@ Tauri 2, Rust, React, and TypeScript.
   are temporary and do not inspect accounts, collect credentials, or persist.
 - Dark and light themes, searchable views, and explicit unavailable/planned states for
   capabilities that are not operational.
+- A restrictive production webview content security policy that blocks inline styles.
 
 ## Not implemented
 

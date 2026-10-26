@@ -56,6 +56,10 @@
   --shadow: 0 25px 60px -30px rgba(0, 0, 0, 0.9);
 }
 
+.score-ring-value {
+  transition: stroke-dashoffset 700ms ease, stroke 300ms ease;
+}
+
 @theme inline {
   --color-canvas: var(--canvas);
   --color-surface: var(--surface);

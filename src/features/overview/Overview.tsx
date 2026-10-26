@@ -161,6 +161,9 @@ export function Overview() {
   const unavailable = dashboard.factors.filter(
     (factor) => factor.status === "unavailable" || factor.status === "not_applicable",
   ).length;
+  const coveragePercent = dashboard.factors.length
+    ? Math.round(((dashboard.factors.length - unavailable) / dashboard.factors.length) * 100)
+    : 0;
 
   return (
     <div className="fade-in">
@@ -260,21 +263,22 @@ export function Overview() {
               <p className="text-[10px] uppercase tracking-[0.1em] text-faint">
                 Audit coverage
               </p>
-              <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-surface-3">
-                <div
-                  className="h-full rounded-full bg-accent"
-                  style={{
-                    width: `${
-                      dashboard.factors.length
-                        ? Math.round(
-                            ((dashboard.factors.length - unavailable) /
-                              dashboard.factors.length) *
-                              100,
-                          )
-                        : 0
-                    }%`,
-                  }}
-                />
+              <div
+                className="mt-2 h-1.5 overflow-hidden rounded-full bg-surface-3"
+                role="progressbar"
+                aria-label="Audit coverage"
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuenow={coveragePercent}
+              >
+                <svg
+                  className="block h-full w-full"
+                  viewBox="0 0 100 1.5"
+                  preserveAspectRatio="none"
+                  aria-hidden
+                >
+                  <rect width={coveragePercent} height="1.5" rx="0.75" fill="var(--accent)" />
+                </svg>
               </div>
               <p className="mt-1.5 text-[11px] text-muted">
                 {dashboard.factors.length - unavailable} of {dashboard.factors.length}{" "}
