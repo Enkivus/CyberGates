@@ -59,35 +59,7 @@ pub fn export(
         .find(|candidate| candidate.id == audit_id)
         .ok_or_else(|| AppError::NotFound(format!("audit {audit_id}")))?;
     let all_findings = db.findings_for_audit(audit_id)?;
-    let (findings, scope) = if let Some(ids) = finding_ids {
-        let total = all_findings.len();
-        if ids.len() > 5000 {
-            return Err(AppError::Validation(
-                "A report can include at most 5000 selected findings.".to_string(),
-            ));
-        }
-        let selected: std::collections::HashSet<&str> = ids.iter().map(String::as_str).collect();
-        if selected.len() != ids.len() || ids.iter().any(|id| id.len() > 64) {
-            return Err(AppError::Validation(
-                "Selected finding identifiers must be unique and no longer than 64 characters."
-                    .to_string(),
-            ));
-        }
-        if ids.iter().any(|id| !all_findings.iter().any(|finding| finding.id == *id)) {
-            return Err(AppError::Validation(
-                "A selected finding does not belong to this audit.".to_string(),
-            ));
-        }
-        (
-            all_findings
-                .into_iter()
-                .filter(|finding| selected.contains(finding.id.as_str()))
-                .collect::<Vec<_>>(),
-            format!("Filtered findings: {} of {total} included", selected.len()),
-        )
-    } else {
-        (all_findings, "Full audit report".to_string())
-    };
+    let (findings, scope) = select_report_findings(all_findings, finding_ids)?;
     let factors: Vec<ScoreFactor> = db
         .factors_for_audit(audit_id)?
         .and_then(|json| serde_json::from_str(&json).ok())
@@ -139,6 +111,46 @@ pub fn export(
         audit_id: audit_id.to_string(),
         warning: warning.to_string(),
     })
+}
+
+fn select_report_findings(
+    all_findings: Vec<Finding>,
+    finding_ids: Option<Vec<String>>,
+) -> AppResult<(Vec<Finding>, String)> {
+    let Some(ids) = finding_ids else {
+        return Ok((all_findings, "Full audit report".to_string()));
+    };
+    let total = all_findings.len();
+    if ids.len() > 5000 {
+        return Err(AppError::Validation(
+            "A report can include at most 5000 selected findings.".to_string(),
+        ));
+    }
+    let selected: std::collections::HashSet<&str> = ids.iter().map(String::as_str).collect();
+    if selected.len() != ids.len() || ids.iter().any(|id| id.len() > 64) {
+        return Err(AppError::Validation(
+            "Selected finding identifiers must be unique and no longer than 64 characters."
+                .to_string(),
+        ));
+    }
+    if ids
+        .iter()
+        .any(|id| !all_findings.iter().any(|finding| finding.id == *id))
+    {
+        return Err(AppError::Validation(
+            "A selected finding does not belong to this audit.".to_string(),
+        ));
+    }
+    Ok((
+        all_findings
+            .into_iter()
+            .filter(|finding| selected.contains(finding.id.as_str()))
+            .collect(),
+        format!(
+            "Filtered findings: {} of {total} included; score and checks represent the full audit",
+            selected.len()
+        ),
+    ))
 }
 
 pub fn export_incident(
@@ -325,6 +337,54 @@ mod tests {
     use crate::models::{IncidentEvent, IncidentRecord, Severity};
     use crate::security::filesystem::ensure_private_dir;
     use std::time::{SystemTime, UNIX_EPOCH};
+
+    fn sample_finding(id: &str, audit_id: &str) -> Finding {
+        Finding {
+            id: id.to_string(),
+            audit_id: audit_id.to_string(),
+            check_id: "check".to_string(),
+            title: "Finding".to_string(),
+            severity: Severity::Medium,
+            status: "open".to_string(),
+            category: "test".to_string(),
+            evidence: "evidence".to_string(),
+            explanation: "explanation".to_string(),
+            remediation: "remediation".to_string(),
+            verification: "verify".to_string(),
+            source: "test".to_string(),
+            detected_at: now_rfc3339(),
+            resolved_at: None,
+        }
+    }
+
+    #[test]
+    fn filtered_report_only_contains_unique_findings_from_the_selected_audit() {
+        let (findings, scope) = select_report_findings(
+            vec![
+                sample_finding("first", "audit-a"),
+                sample_finding("second", "audit-a"),
+            ],
+            Some(vec!["second".to_string()]),
+        )
+        .unwrap();
+
+        assert_eq!(
+            findings
+                .iter()
+                .map(|finding| finding.id.as_str())
+                .collect::<Vec<_>>(),
+            ["second"]
+        );
+        assert_eq!(
+            scope,
+            "Filtered findings: 1 of 2 included; score and checks represent the full audit"
+        );
+        assert!(select_report_findings(
+            vec![sample_finding("first", "audit-a")],
+            Some(vec!["foreign".to_string()]),
+        )
+        .is_err());
+    }
 
     #[cfg(unix)]
     #[test]

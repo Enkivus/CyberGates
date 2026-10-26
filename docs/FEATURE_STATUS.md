@@ -126,6 +126,9 @@ Status is based on code presence **and verification**, not screen existence.
 - ✅ Audit history, findings viewer, activity log
 - ✅ Severity and detected-date filters for audit findings
 - ✅ Sanitized JSON and HTML export with sensitive-data warning
+- ✅ Filtered audit report export using the selected severity/date filters; the output
+  identifies that its score/checks describe the full audit. Full audit exports remain
+  available from history
 - 🟡 Audit and incident JSON/HTML reports are implemented; scan reports depend on the
   unavailable malware scanner
 - ⬜ OS notification delivery is not implemented; the saved setting is a preference only

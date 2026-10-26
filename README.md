@@ -39,7 +39,7 @@ Tauri 2, Rust, React, and TypeScript.
 - A bounded, read-only viewer for recent CyberGates application logs. It does not show
   operating-system security events; review local paths and error details before sharing.
 - Local audit history, findings with severity/date filters, configurable retention,
-  activity log, and JSON/HTML reports.
+  activity log, full and filtered JSON/HTML audit reports, and incident reports.
 - Local incident cases created from open posture findings, with linked evidence,
   user-entered timeline notes, auditable status history, and private JSON/HTML exports.
   Cases do not perform or verify system response actions.

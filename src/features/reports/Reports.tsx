@@ -76,11 +76,15 @@ export function Reports() {
     }
   };
 
-  const exportReport = async (auditId: string, format: "json" | "html") => {
-    setExporting(`${auditId}-${format}`);
+  const exportReport = async (
+    auditId: string,
+    format: "json" | "html",
+    findingIds?: string[],
+  ) => {
+    setExporting(`${auditId}-${format}${findingIds ? "-filtered" : ""}`);
     setError(null);
     try {
-      const result = await api.exportReport(auditId, format);
+      const result = await api.exportReport(auditId, format, findingIds);
       setExported(result);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -247,6 +251,36 @@ export function Reports() {
                   From
                   <input className="input w-32 py-1.5 text-xs" type="date" value={dateFrom} onChange={(event) => setDateFrom(event.target.value)} aria-label="Filter findings from date" />
                 </label>
+                <button
+                  type="button"
+                  className="btn btn-sm"
+                  onClick={() =>
+                    void exportReport(
+                      selectedAudit,
+                      "html",
+                      filteredFindings.map((finding) => finding.id),
+                    )
+                  }
+                  disabled={findings === null || exporting !== null}
+                >
+                  <FileText className="h-3.5 w-3.5" aria-hidden />
+                  Export filtered HTML
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-sm"
+                  onClick={() =>
+                    void exportReport(
+                      selectedAudit,
+                      "json",
+                      filteredFindings.map((finding) => finding.id),
+                    )
+                  }
+                  disabled={findings === null || exporting !== null}
+                >
+                  <FileJson className="h-3.5 w-3.5" aria-hidden />
+                  Export filtered JSON
+                </button>
                 <label className="flex items-center gap-1 text-[10px] text-muted">
                   To
                   <input className="input w-32 py-1.5 text-xs" type="date" value={dateTo} onChange={(event) => setDateTo(event.target.value)} aria-label="Filter findings through date" />

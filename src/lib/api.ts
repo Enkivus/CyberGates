@@ -82,8 +82,8 @@ export const api = {
   getSettings: () => call<SettingEntry[]>("get_settings"),
   updateSetting: (key: string, value: string) =>
     call<SettingEntry>("update_setting", { key, value }),
-  exportReport: (auditId: string, format: "json" | "html") =>
-    call<ReportExport>("export_report", { auditId, format }),
+  exportReport: (auditId: string, format: "json" | "html", findingIds?: string[]) =>
+    call<ReportExport>("export_report", { auditId, format, findingIds }),
   getAuditLog: (limit = 100) => call<AuditLogEntry[]>("get_audit_log", { limit }),
   getApplicationLogs: (limit = 200) =>
     call<ApplicationLogSnapshot>("get_application_logs", { limit }),
