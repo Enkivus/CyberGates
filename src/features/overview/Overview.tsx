@@ -15,6 +15,8 @@ import {
 } from "lucide-react";
 import { api } from "../../lib/api";
 import type { CheckStatus, Dashboard, ScoreFactor } from "../../lib/types";
+import { useToast } from "../../components/ToastProvider";
+import { countNewImportantFindings } from "./importantFindings";
 import {
   formatDateTime,
   formatRelative,
@@ -62,25 +64,46 @@ export function Overview() {
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const autoRan = useRef(false);
+  const dashboardRef = useRef<Dashboard | null>(null);
+  const { showToast } = useToast();
 
-  const runAudit = useCallback(async () => {
+  const runAudit = useCallback(async (notify = true) => {
     setRunning(true);
     setError(null);
     try {
+      const previousFindings = dashboardRef.current?.findings ?? [];
       const result = await api.runAudit();
+      dashboardRef.current = result;
       setDashboard(result);
+      if (notify && countNewImportantFindings(previousFindings, result.findings) > 0) {
+        try {
+          const settings = await api.getSettings();
+          const notificationsEnabled = settings.some(
+            (setting) => setting.key === "notifications" && setting.value === "true",
+          );
+          if (notificationsEnabled) {
+            showToast(
+              "New critical or high-severity findings were found. Open Overview to review them.",
+              "warning",
+            );
+          }
+        } catch {
+          // A preference read failure must not turn a successful audit into an error.
+        }
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
       setRunning(false);
     }
-  }, []);
+  }, [showToast]);
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
       const result = await api.getDashboard();
+      dashboardRef.current = result;
       setDashboard(result);
       const needsFirstAudit =
         !result.lastAudit ||
@@ -89,7 +112,7 @@ export function Overview() {
       if (needsFirstAudit && !autoRan.current) {
         autoRan.current = true;
         setLoading(false);
-        await runAudit();
+        await runAudit(false);
         return;
       }
     } catch (err) {

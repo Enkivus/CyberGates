@@ -98,7 +98,7 @@ export function Settings({
     void load();
   }, [load]);
 
-  const save = async (key: string, value: string, successMessage: string) => {
+  const save = async (key: string, value: string, successMessage: string): Promise<boolean> => {
     setSaving(key);
     setError(null);
     try {
@@ -109,8 +109,10 @@ export function Settings({
           current ? { ...current, retentionDays: Number(value) } : current,
         );
       }
+      return true;
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
+      return false;
     } finally {
       setSaving(null);
     }
@@ -187,7 +189,7 @@ export function Settings({
           <Panel>
             <PanelHeader
               title="Notifications"
-              description="Local notifications for important findings when notification support is implemented."
+              description="Show an in-app notice when a manual audit detects a new high or critical finding."
             />
             <div className="flex items-center justify-between gap-4 p-5">
               <div className="flex items-start gap-3">
@@ -195,21 +197,24 @@ export function Settings({
                 <div>
                   <p className="text-xs font-semibold text-ink">Finding notifications</p>
                   <p className="mt-0.5 text-[11px] leading-relaxed text-muted">
-                    Preference only. OS notification delivery is not implemented yet, so
-                    no notifications are currently sent.
+                    In-app notices only. They do not include finding details. Operating-system
+                    notification delivery is not implemented yet.
                   </p>
                 </div>
               </div>
               <Toggle
                 checked={notifications}
                 label="Finding notifications"
+                disabled={saving === "notifications"}
                 onChange={(value) => {
                   setNotifications(value);
                   void save(
                     "notifications",
                     String(value),
-                    "Notification preference saved. Delivery is not implemented yet.",
-                  );
+                    "Notification preference saved.",
+                  ).then((success) => {
+                    if (!success) setNotifications(!value);
+                  });
                 }}
               />
             </div>

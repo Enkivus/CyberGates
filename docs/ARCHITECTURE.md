@@ -153,7 +153,8 @@ Adding an adapter must not change the UI contract; capability states are data.
   startup and service inventories.
 - `features/network` — read-only connection and interface/DNS resolver inventory where
   supported by the native platform adapter.
-- `features/firewall` — read-only Application Firewall state and app rules.
+- `features/firewall` — read-only macOS Application Firewall state/app rules and partial
+  Linux firewall-manager observations.
 - `features/vulnerabilities` — software inventory and optional Homebrew advisories.
 - `features/reports` — audit history, findings viewer, exports, activity log.
 - `features/settings` — theme, retention, preferences, storage, limitations.

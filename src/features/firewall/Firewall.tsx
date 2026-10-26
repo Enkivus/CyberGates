@@ -74,7 +74,7 @@ export function Firewall() {
     <div className="fade-in">
       <PageHeader
         title="Firewall"
-        subtitle="Read-only view of the macOS Application Firewall and its per-application exceptions. CyberGates does not change firewall configuration."
+        subtitle="Read-only observations of firewall settings and tools available on this platform. CyberGates does not change firewall configuration."
         actions={
           <button type="button" className="btn" onClick={() => void load()} disabled={loading}>
             <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} aria-hidden />
@@ -87,10 +87,9 @@ export function Firewall() {
         <div className="flex items-start gap-3">
           <Lock className="mt-0.5 h-4 w-4 shrink-0 text-accent" aria-hidden />
           <div>
-            <strong className="text-ink">Read-only inspection.</strong> Rule changes,
-            impact preview, apply, and revert are not implemented. Nothing on this page
-            modifies the firewall. Application exceptions are not a complete packet-filter
-            ruleset.
+            <strong className="text-ink">Read-only inspection.</strong> Nothing on this page
+            modifies the firewall. Tool status can be partial and is not a complete firewall
+            policy assessment.
           </div>
         </div>
       </div>
@@ -101,7 +100,7 @@ export function Firewall() {
         </Panel>
       ) : loading && !snapshot ? (
         <Panel>
-          <LoadingState label="Reading macOS Application Firewall state" />
+          <LoadingState label="Reading firewall state" />
         </Panel>
       ) : !snapshot ? (
         <Panel>
@@ -110,6 +109,25 @@ export function Firewall() {
             title="Firewall inspection unavailable"
             description="This platform has no read-only firewall adapter yet. No status is inferred."
           />
+        </Panel>
+      ) : snapshot.backends.length > 0 ? (
+        <Panel>
+          <PanelHeader
+            title="Firewall manager observations"
+            description={`${snapshot.source} · read ${formatRelative(snapshot.fetchedAt)}`}
+          />
+          <div className="space-y-4 p-5">
+            <p className="text-xs leading-relaxed text-muted">{snapshot.scopeNote}</p>
+            <div className="grid gap-3 md:grid-cols-3">
+              {snapshot.backends.map((backend) => (
+                <section key={backend.name} className="rounded-xl border border-line bg-surface-2 p-4">
+                  <p className="text-xs font-medium text-muted">{backend.name}</p>
+                  <p className="mt-1 text-sm font-semibold text-ink">{backend.state}</p>
+                  <p className="mt-2 text-xs leading-relaxed text-muted">{backend.detail}</p>
+                </section>
+              ))}
+            </div>
+          </div>
         </Panel>
       ) : (
         <>
@@ -235,6 +253,7 @@ export function Firewall() {
             <Panel>
               <PanelHeader title="Interpretation limits" />
               <div className="space-y-2 p-5 text-xs leading-relaxed text-muted">
+                <p>{snapshot.scopeNote}</p>
                 <p className="flex items-start gap-2">
                   <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warn" aria-hidden />
                   An "Allow" rule is not automatically unsafe, and a "Block" rule is not

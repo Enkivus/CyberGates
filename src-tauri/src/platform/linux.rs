@@ -9,19 +9,26 @@ use chrono::{DateTime, Utc};
 
 use crate::error::AppResult;
 use crate::models::{
-    now_rfc3339, CheckResult, CheckStatus, InstalledApp, LoadedService, LoadedServiceInventory,
-    NetworkInterface, NetworkSnapshot, Severity, StartupInventory, StartupItem,
+    now_rfc3339, CheckResult, CheckStatus, FirewallBackendStatus, FirewallSnapshot, InstalledApp,
+    LoadedService, LoadedServiceInventory, NetworkInterface, NetworkSnapshot, Severity,
+    StartupInventory, StartupItem,
 };
 use crate::platform::PlatformAudit;
 use crate::security::process::run_optional_with_limit;
+use crate::security::process::CommandOutput;
 
 const SYSTEMCTL_PATHS: &[&str] = &["/usr/bin/systemctl", "/bin/systemctl"];
 const IP_PATHS: &[&str] = &["/usr/sbin/ip", "/sbin/ip", "/usr/bin/ip", "/bin/ip"];
 const DPKG_QUERY_PATHS: &[&str] = &["/usr/bin/dpkg-query", "/bin/dpkg-query"];
 const RPM_PATHS: &[&str] = &["/usr/bin/rpm", "/bin/rpm"];
 const PACMAN_PATHS: &[&str] = &["/usr/bin/pacman", "/bin/pacman"];
+const UFW_PATHS: &[&str] = &["/usr/sbin/ufw", "/sbin/ufw", "/usr/bin/ufw"];
+const FIREWALL_CMD_PATHS: &[&str] = &["/usr/bin/firewall-cmd", "/bin/firewall-cmd"];
+const NFT_PATHS: &[&str] = &["/usr/sbin/nft", "/sbin/nft", "/usr/bin/nft"];
 const SYSTEMCTL_TIMEOUT: Duration = Duration::from_secs(6);
+const FIREWALL_TIMEOUT: Duration = Duration::from_secs(3);
 const MAX_COMMAND_OUTPUT: usize = 2 * 1024 * 1024;
+const MAX_FIREWALL_OUTPUT: usize = 64 * 1024;
 const MAX_STARTUP_ITEMS: usize = 1000;
 const MAX_EXAMINED_ENTRIES: usize = 5000;
 
@@ -41,7 +48,7 @@ impl PlatformAudit for LinuxAdapter {
     fn notes(&self) -> Vec<String> {
         vec![
             "Linux startup configuration and current-user systemd inventories are available.".to_string(),
-            "Read-only package names and versions are available through dpkg, RPM, or pacman when detected. Native posture checks, firewall, network socket ownership, and Linux package advisory matching are not implemented; no security score is claimed.".to_string(),
+            "Read-only package names and versions are available through dpkg, RPM, or pacman when detected. Firewall tool observations are partial and separate from posture scoring. Verified Linux posture checks, network socket ownership, and Linux package advisory matching are not implemented; no security score is claimed.".to_string(),
         ]
     }
 
@@ -60,6 +67,40 @@ impl PlatformAudit for LinuxAdapter {
             source: "CyberGates capability detection".to_string(),
             checked_at: now_rfc3339(),
         }]
+    }
+
+    fn firewall_snapshot(&self) -> AppResult<Option<FirewallSnapshot>> {
+        let ufw_output = UFW_PATHS.iter().find_map(|path| {
+            run_optional_with_limit(path, &["status"], FIREWALL_TIMEOUT, MAX_FIREWALL_OUTPUT)
+        });
+        let firewalld_output = FIREWALL_CMD_PATHS.iter().find_map(|path| {
+            run_optional_with_limit(path, &["--state"], FIREWALL_TIMEOUT, MAX_FIREWALL_OUTPUT)
+        });
+        let nft_output = NFT_PATHS.iter().find_map(|path| {
+            run_optional_with_limit(
+                path,
+                &["list", "ruleset"],
+                FIREWALL_TIMEOUT,
+                MAX_FIREWALL_OUTPUT,
+            )
+        });
+
+        Ok(Some(FirewallSnapshot {
+            enabled: None,
+            stealth_mode: None,
+            block_all: None,
+            allow_signed_builtin: None,
+            allow_signed_downloaded: None,
+            rules: Vec::new(),
+            backends: vec![
+                parse_ufw_backend(ufw_output.as_ref()),
+                parse_firewalld_backend(firewalld_output.as_ref()),
+                parse_nft_backend(nft_output.as_ref()),
+            ],
+            scope_note: "Reports only the status exposed by UFW, firewalld, or nftables when available. These tools may coexist; no single global firewall state or complete ruleset is inferred, and no firewall configuration is changed.".to_string(),
+            fetched_at: now_rfc3339(),
+            source: "Linux firewall tools (read-only, partial coverage)".to_string(),
+        }))
     }
 
     fn network_snapshot(&self) -> AppResult<NetworkSnapshot> {
@@ -340,6 +381,101 @@ fn desktop_startup_item(path: &Path, scope: &str) -> Option<StartupItem> {
     })
 }
 
+fn parse_ufw_backend(output: Option<&CommandOutput>) -> FirewallBackendStatus {
+    let Some(output) = output else {
+        return firewall_backend(
+            "UFW",
+            "Unavailable",
+            "UFW was not found at a known system path or could not be started.",
+        );
+    };
+    if !output.success {
+        return firewall_backend("UFW", "Unknown", "UFW status could not be read.");
+    }
+    match output.stdout.lines().find_map(|line| {
+        line.trim()
+            .strip_prefix("Status:")
+            .map(|status| status.trim())
+    }) {
+        Some("active") => firewall_backend(
+            "UFW",
+            "Reported active",
+            "UFW reports that its firewall service is active.",
+        ),
+        Some("inactive") => firewall_backend(
+            "UFW",
+            "Reported inactive",
+            "UFW reports that its firewall service is inactive.",
+        ),
+        _ => firewall_backend("UFW", "Unknown", "UFW returned an unrecognized status."),
+    }
+}
+
+fn parse_firewalld_backend(output: Option<&CommandOutput>) -> FirewallBackendStatus {
+    let Some(output) = output else {
+        return firewall_backend(
+            "firewalld",
+            "Unavailable",
+            "firewall-cmd was not found at a known system path or could not be started.",
+        );
+    };
+    match output.combined().as_str() {
+        "running" if output.success => firewall_backend(
+            "firewalld",
+            "Reported running",
+            "firewall-cmd reports that the firewalld service is running.",
+        ),
+        "not running" => firewall_backend(
+            "firewalld",
+            "Reported stopped",
+            "firewall-cmd reports that the firewalld service is not running.",
+        ),
+        _ => firewall_backend(
+            "firewalld",
+            "Unknown",
+            "firewalld status could not be determined from firewall-cmd.",
+        ),
+    }
+}
+
+fn parse_nft_backend(output: Option<&CommandOutput>) -> FirewallBackendStatus {
+    let Some(output) = output else {
+        return firewall_backend(
+            "nftables",
+            "Unavailable",
+            "The nft utility was not found at a known system path or could not be started.",
+        );
+    };
+    if !output.success {
+        return firewall_backend(
+            "nftables",
+            "Unknown",
+            "The nftables ruleset could not be read; permission may be required.",
+        );
+    }
+    if output.stdout.trim().is_empty() {
+        firewall_backend(
+            "nftables",
+            "No rules returned",
+            "nftables returned an empty ruleset view. This does not prove that host filtering is disabled.",
+        )
+    } else {
+        firewall_backend(
+            "nftables",
+            "Ruleset visible",
+            "nftables returned rules. CyberGates does not interpret them as a complete firewall policy.",
+        )
+    }
+}
+
+fn firewall_backend(name: &str, state: &str, detail: &str) -> FirewallBackendStatus {
+    FirewallBackendStatus {
+        name: name.to_string(),
+        state: state.to_string(),
+        detail: detail.to_string(),
+    }
+}
+
 fn parse_enabled_unit_files(text: &str, scope: &str) -> Vec<StartupItem> {
     text.lines()
         .take(10_000)
@@ -588,6 +724,47 @@ fn parse_resolver_text(text: &str, warnings: &mut Vec<String>) -> Vec<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn command_output(stdout: &str, success: bool) -> CommandOutput {
+        CommandOutput {
+            success,
+            stdout: stdout.to_string(),
+            stderr: String::new(),
+        }
+    }
+
+    #[test]
+    fn firewall_adapters_only_report_states_their_tools_expose() {
+        assert_eq!(
+            parse_ufw_backend(Some(&command_output("Status: active\n", true))).state,
+            "Reported active"
+        );
+        assert_eq!(
+            parse_ufw_backend(Some(&command_output("Status: inactive\n", true))).state,
+            "Reported inactive"
+        );
+        assert_eq!(
+            parse_ufw_backend(Some(&command_output("UFW status unavailable", false))).state,
+            "Unknown"
+        );
+        assert_eq!(
+            parse_firewalld_backend(Some(&command_output("running\n", true))).state,
+            "Reported running"
+        );
+        assert_eq!(
+            parse_firewalld_backend(Some(&command_output("not running\n", false))).state,
+            "Reported stopped"
+        );
+        assert_eq!(
+            parse_nft_backend(Some(&command_output("table inet filter {}\n", true))).state,
+            "Ruleset visible"
+        );
+        assert_eq!(
+            parse_nft_backend(Some(&command_output("", true))).state,
+            "No rules returned"
+        );
+        assert_eq!(parse_nft_backend(None).state, "Unavailable");
+    }
 
     #[test]
     fn parses_only_enabled_systemd_service_units() {

@@ -262,6 +262,12 @@ export interface FirewallRule {
   action: string;
 }
 
+export interface FirewallBackendStatus {
+  name: string;
+  state: string;
+  detail: string;
+}
+
 export interface FirewallSnapshot {
   enabled: boolean | null;
   stealthMode: boolean | null;
@@ -269,6 +275,8 @@ export interface FirewallSnapshot {
   allowSignedBuiltin: boolean | null;
   allowSignedDownloaded: boolean | null;
   rules: FirewallRule[];
+  backends: FirewallBackendStatus[];
+  scopeNote: string;
   fetchedAt: string;
   source: string;
 }

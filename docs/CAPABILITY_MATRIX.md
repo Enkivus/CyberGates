@@ -11,7 +11,7 @@ Legend: ✅ implemented and tested · 🟡 partial · ⛔ explicitly unavailable
 |---|---|---|---|
 | App launch / navigation / settings | ✅ | ⬜ not verified | ⬜ not verified |
 | Explainable posture score | ✅ | ⛔ no adapter | ⛔ no adapter |
-| Application firewall status | ✅ | ⛔ | ⛔ |
+| Application firewall status | ✅ | 🟡 partial UFW/firewalld/nftables observations | ⛔ |
 | Firewall app-rule inspection | ✅ read-only | ⛔ | ⛔ |
 | Firewall stealth mode | ✅ | — | — |
 | Firewall rule changes/apply/revert | ⬜ | ⬜ | ⬜ |

@@ -28,7 +28,9 @@ Tauri 2, Rust, React, and TypeScript.
 - Linux installed-package name and version inventory through dpkg, RPM, or pacman when
   one of those package databases is available. Linux packages are not matched against
   vulnerability advisories yet.
-- Read-only macOS Application Firewall settings and per-application exceptions.
+- Read-only macOS Application Firewall settings and per-application exceptions, plus
+  partial Linux UFW/firewalld/nftables observations. Neither is a complete firewall
+  policy audit, and CyberGates does not change firewall settings.
 - Local SHA-256 hashing (up to 64 MiB) and bounded header-signature inspection for a
   user-selected file; contents are read in the webview and never uploaded or executed.
   Signature and extension checks are best-effort and do not determine whether a file is
@@ -43,6 +45,8 @@ Tauri 2, Rust, React, and TypeScript.
   operating-system security events; review local paths and error details before sharing.
 - Local audit history, findings with severity/date filters, configurable retention,
   activity log, full and filtered JSON/HTML audit reports, and incident reports.
+- Optional in-app notice after a manual audit finds a new high or critical finding. The
+  notice omits finding details; operating-system notification delivery is not implemented.
 - Local incident cases created from open posture findings, with linked evidence,
   user-entered timeline notes, auditable status history, and private JSON/HTML exports.
   Cases do not perform or verify system response actions.

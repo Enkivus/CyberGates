@@ -57,9 +57,16 @@ pub fn list() -> Vec<ModuleStatus> {
         ModuleStatus {
             id: "firewall".to_string(),
             name: "Firewall".to_string(),
-            status: if macos { "partial" } else { "unavailable" }.to_string(),
+            status: if macos || linux {
+                "partial"
+            } else {
+                "unavailable"
+            }
+            .to_string(),
             detail: if macos {
                 "Read-only macOS Application Firewall state and per-application rules are live. Rule changes, impact preview, and revert are not implemented.".to_string()
+            } else if linux {
+                "Read-only UFW/firewalld status and nftables ruleset visibility are reported independently. This is partial coverage, not a complete policy audit; Linux posture scoring and firewall changes are unavailable.".to_string()
             } else {
                 "Read-only firewall inspection is not implemented for this platform yet.".to_string()
             },

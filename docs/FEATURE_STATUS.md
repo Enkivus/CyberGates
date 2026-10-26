@@ -60,6 +60,8 @@ Status is based on code presence **and verification**, not screen existence.
 
 - 🟡 Read-only macOS Application Firewall snapshot: global state, stealth, block-all,
   signed-software handling, and per-application allow/block exceptions
+- 🟡 Linux can report UFW/firewalld service states and whether nftables returned a
+  ruleset; these tools may coexist, and this is not a complete firewall policy audit
 - ✅ Search/filter and explicit read-only/interpretation warnings
 - ⬜ Rule changes, impact preview, apply/revert, verification
 - ⛔ Never disables/flushes or edits firewall rules automatically
@@ -133,7 +135,8 @@ Status is based on code presence **and verification**, not screen existence.
   available from history
 - 🟡 Audit and incident JSON/HTML reports are implemented; scan reports depend on the
   unavailable malware scanner
-- ⬜ OS notification delivery is not implemented; the saved setting is a preference only
+- 🟡 In-app notices appear after a manual audit finds a new open high/critical check;
+  notices are generic and settings-controlled. OS notification delivery is not implemented
 
 ## 15. Settings
 

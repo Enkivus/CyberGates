@@ -84,6 +84,8 @@ impl PlatformAudit for MacOsAdapter {
             allow_signed_builtin,
             allow_signed_downloaded,
             rules: parse_firewall_rules(&list.stdout),
+            backends: Vec::new(),
+            scope_note: "Reports macOS Application Firewall state and per-application exceptions only. This is not the complete packet-filter ruleset.".to_string(),
             fetched_at: now_rfc3339(),
             source: "macOS Application Firewall (socketfilterfw)".to_string(),
         }))

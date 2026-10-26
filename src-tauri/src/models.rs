@@ -353,8 +353,18 @@ pub struct FirewallSnapshot {
     pub allow_signed_builtin: Option<bool>,
     pub allow_signed_downloaded: Option<bool>,
     pub rules: Vec<FirewallRule>,
+    pub backends: Vec<FirewallBackendStatus>,
+    pub scope_note: String,
     pub fetched_at: String,
     pub source: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FirewallBackendStatus {
+    pub name: String,
+    pub state: String,
+    pub detail: String,
 }
 
 #[derive(Debug, Clone)]
