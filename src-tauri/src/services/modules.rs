@@ -3,14 +3,6 @@ use crate::models::ModuleStatus;
 pub fn list() -> Vec<ModuleStatus> {
     let macos = cfg!(target_os = "macos");
     let linux = cfg!(target_os = "linux");
-    let status = |implemented: bool| -> &'static str {
-        if implemented {
-            "partial"
-        } else {
-            "planned"
-        }
-    };
-
     vec![
         ModuleStatus {
             id: "overview".to_string(),
@@ -25,8 +17,12 @@ pub fn list() -> Vec<ModuleStatus> {
         ModuleStatus {
             id: "threat-protection".to_string(),
             name: "Threat Protection".to_string(),
-            status: status(macos).to_string(),
-            detail: "XProtect presence is verified. File scanning, real-time protection, and quarantine are not implemented yet.".to_string(),
+            status: if macos { "partial" } else { "planned" }.to_string(),
+            detail: if macos {
+                "XProtect presence is verified. File scanning, real-time protection, and quarantine are not implemented yet.".to_string()
+            } else {
+                "No native malware-protection integration is implemented for this platform.".to_string()
+            },
         },
         ModuleStatus {
             id: "scanner".to_string(),
@@ -37,11 +33,11 @@ pub fn list() -> Vec<ModuleStatus> {
         ModuleStatus {
             id: "vulnerabilities".to_string(),
             name: "Vulnerabilities".to_string(),
-            status: if macos { "partial" } else { "unavailable" }.to_string(),
+            status: if macos || linux { "partial" } else { "unavailable" }.to_string(),
             detail: if macos {
                 "Installed application and Homebrew inventory is live. Homebrew patch-declared CVEs can be matched against a downloaded advisory database with explicit freshness and scope; coverage is not complete.".to_string()
             } else if linux {
-                "Linux software inventory and package advisory matching are not implemented yet.".to_string()
+                "Installed packages are inventoried through a supported native package database. Linux package advisory matching is not implemented.".to_string()
             } else {
                 "Installed-software inventory is not implemented for this platform yet.".to_string()
             },
@@ -49,7 +45,7 @@ pub fn list() -> Vec<ModuleStatus> {
         ModuleStatus {
             id: "network".to_string(),
             name: "Network Security".to_string(),
-            status: "partial".to_string(),
+            status: if macos || linux { "partial" } else { "unavailable" }.to_string(),
             detail: if macos {
                 "Read-only socket, interface-address, and DNS resolver inventory is available. Discovery, scanning, and DNS reputation checks are not implemented.".to_string()
             } else if linux {
@@ -83,8 +79,12 @@ pub fn list() -> Vec<ModuleStatus> {
         ModuleStatus {
             id: "privacy".to_string(),
             name: "Privacy".to_string(),
-            status: "partial".to_string(),
-            detail: "Screen lock, guest account, and encryption signals are audited. Application permission and browser auditing are not implemented.".to_string(),
+            status: if macos { "partial" } else { "planned" }.to_string(),
+            detail: if macos {
+                "Screen lock, guest account, and FileVault signals are audited. Application permission and browser auditing are not implemented.".to_string()
+            } else {
+                "Native privacy posture checks are not implemented for this platform. Application permission and browser auditing are not available.".to_string()
+            },
         },
         ModuleStatus {
             id: "account".to_string(),
@@ -101,8 +101,12 @@ pub fn list() -> Vec<ModuleStatus> {
         ModuleStatus {
             id: "backup".to_string(),
             name: "Backup and Recovery".to_string(),
-            status: "partial".to_string(),
-            detail: "Time Machine metadata is checked. Restore verification is not performed.".to_string(),
+            status: if macos { "partial" } else { "planned" }.to_string(),
+            detail: if macos {
+                "Time Machine metadata is checked. Restore verification is not performed.".to_string()
+            } else {
+                "Native backup inventory and restore verification are not implemented for this platform.".to_string()
+            },
         },
         ModuleStatus {
             id: "toolkit".to_string(),

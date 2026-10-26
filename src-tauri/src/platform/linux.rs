@@ -9,14 +9,17 @@ use chrono::{DateTime, Utc};
 
 use crate::error::AppResult;
 use crate::models::{
-    now_rfc3339, CheckResult, CheckStatus, LoadedService, LoadedServiceInventory, NetworkInterface,
-    NetworkSnapshot, Severity, StartupInventory, StartupItem,
+    now_rfc3339, CheckResult, CheckStatus, InstalledApp, LoadedService, LoadedServiceInventory,
+    NetworkInterface, NetworkSnapshot, Severity, StartupInventory, StartupItem,
 };
 use crate::platform::PlatformAudit;
 use crate::security::process::run_optional_with_limit;
 
 const SYSTEMCTL_PATHS: &[&str] = &["/usr/bin/systemctl", "/bin/systemctl"];
 const IP_PATHS: &[&str] = &["/usr/sbin/ip", "/sbin/ip", "/usr/bin/ip", "/bin/ip"];
+const DPKG_QUERY_PATHS: &[&str] = &["/usr/bin/dpkg-query", "/bin/dpkg-query"];
+const RPM_PATHS: &[&str] = &["/usr/bin/rpm", "/bin/rpm"];
+const PACMAN_PATHS: &[&str] = &["/usr/bin/pacman", "/bin/pacman"];
 const SYSTEMCTL_TIMEOUT: Duration = Duration::from_secs(6);
 const MAX_COMMAND_OUTPUT: usize = 2 * 1024 * 1024;
 const MAX_STARTUP_ITEMS: usize = 1000;
@@ -38,7 +41,7 @@ impl PlatformAudit for LinuxAdapter {
     fn notes(&self) -> Vec<String> {
         vec![
             "Linux startup configuration and current-user systemd inventories are available.".to_string(),
-            "Native posture checks, firewall, network socket ownership, and software inventory are not implemented; no security score is claimed.".to_string(),
+            "Read-only package names and versions are available through dpkg, RPM, or pacman when detected. Native posture checks, firewall, network socket ownership, and Linux package advisory matching are not implemented; no security score is claimed.".to_string(),
         ]
     }
 
@@ -94,6 +97,50 @@ impl PlatformAudit for LinuxAdapter {
             scope_note: "Lists interface addresses visible to the current user and nameserver entries in /etc/resolv.conf. A local stub resolver may be shown instead of upstream DNS servers. This does not assess DNS trust, reputation, or reachability.".to_string(),
             warnings,
         })
+    }
+
+    fn installed_apps(&self) -> AppResult<Vec<InstalledApp>> {
+        let dpkg_format =
+            "${binary:Package}\\t${Version}\\t${Architecture}\\t${db:Status-Status}\\n";
+        if let Some(output) = DPKG_QUERY_PATHS.iter().find_map(|path| {
+            run_optional_with_limit(
+                path,
+                &["-W", &format!("--showformat={dpkg_format}")],
+                SYSTEMCTL_TIMEOUT,
+                MAX_COMMAND_OUTPUT,
+            )
+        }) {
+            if output.success {
+                return Ok(parse_dpkg_packages(&output.stdout));
+            }
+        }
+
+        if let Some(output) = PACMAN_PATHS.iter().find_map(|path| {
+            run_optional_with_limit(path, &["-Q"], SYSTEMCTL_TIMEOUT, MAX_COMMAND_OUTPUT)
+        }) {
+            if output.success {
+                return Ok(parse_pacman_packages(&output.stdout));
+            }
+        }
+
+        if let Some(output) = RPM_PATHS.iter().find_map(|path| {
+            run_optional_with_limit(
+                path,
+                &[
+                    "-qa",
+                    "--qf",
+                    "%{NAME}\\t%{VERSION}-%{RELEASE}\\t%{ARCH}\\n",
+                ],
+                SYSTEMCTL_TIMEOUT,
+                MAX_COMMAND_OUTPUT,
+            )
+        }) {
+            if output.success {
+                return Ok(parse_rpm_packages(&output.stdout));
+            }
+        }
+
+        Ok(Vec::new())
     }
 
     fn startup_inventory(&self) -> AppResult<StartupInventory> {
@@ -357,6 +404,86 @@ fn systemd_state(active: &str, sub: &str) -> String {
     format!("{active} ({sub})")
 }
 
+fn valid_package_field(value: &str) -> bool {
+    !value.is_empty()
+        && value.len() <= 512
+        && !value.chars().any(char::is_control)
+        && !value.contains(['/', '\\'])
+}
+
+fn parse_dpkg_packages(text: &str) -> Vec<InstalledApp> {
+    text.lines()
+        .take(20_000)
+        .filter_map(|line| {
+            let mut fields = line.splitn(4, '\t');
+            let name = fields.next()?;
+            let version = fields.next()?;
+            let _architecture = fields.next()?;
+            let status = fields.next()?;
+            if status != "installed" || !valid_package_field(name) || !valid_package_field(version)
+            {
+                return None;
+            }
+            Some(InstalledApp {
+                name: name.to_string(),
+                version: Some(version.to_string()),
+                source: "Debian packages (dpkg)".to_string(),
+                path: None,
+                signed_by: None,
+                obtained_from: Some("dpkg database".to_string()),
+            })
+        })
+        .collect()
+}
+
+fn parse_rpm_packages(text: &str) -> Vec<InstalledApp> {
+    text.lines()
+        .take(20_000)
+        .filter_map(|line| {
+            let mut fields = line.splitn(3, '\t');
+            let name = fields.next()?;
+            let version = fields.next()?;
+            let _architecture = fields.next()?;
+            if !valid_package_field(name) || !valid_package_field(version) {
+                return None;
+            }
+            Some(InstalledApp {
+                name: name.to_string(),
+                version: Some(version.to_string()),
+                source: "RPM packages".to_string(),
+                path: None,
+                signed_by: None,
+                obtained_from: Some("RPM database".to_string()),
+            })
+        })
+        .collect()
+}
+
+fn parse_pacman_packages(text: &str) -> Vec<InstalledApp> {
+    text.lines()
+        .take(20_000)
+        .filter_map(|line| {
+            let mut fields = line.split_whitespace();
+            let name = fields.next()?;
+            let version = fields.next()?;
+            if fields.next().is_some()
+                || !valid_package_field(name)
+                || !valid_package_field(version)
+            {
+                return None;
+            }
+            Some(InstalledApp {
+                name: name.to_string(),
+                version: Some(version.to_string()),
+                source: "Arch packages (pacman)".to_string(),
+                path: None,
+                signed_by: None,
+                obtained_from: Some("pacman database".to_string()),
+            })
+        })
+        .collect()
+}
+
 fn run_systemctl(args: &[&str]) -> Option<crate::security::process::CommandOutput> {
     SYSTEMCTL_PATHS
         .iter()
@@ -519,5 +646,27 @@ mod tests {
             &mut warnings,
         );
         assert_eq!(servers, ["127.0.0.53", "2001:db8::53"]);
+    }
+
+    #[test]
+    fn parses_only_installed_dpkg_packages_with_bounded_fields() {
+        let packages = parse_dpkg_packages(
+            "openssl:amd64\t3.0.2-0ubuntu1\tamd64\tinstalled\nremoved\t1.0\tall\tconfig-files\nbad/name\t1.0\tall\tinstalled\nmalformed\t1.0\n",
+        );
+        assert_eq!(packages.len(), 1);
+        assert_eq!(packages[0].name, "openssl:amd64");
+        assert_eq!(packages[0].version.as_deref(), Some("3.0.2-0ubuntu1"));
+        assert_eq!(packages[0].source, "Debian packages (dpkg)");
+    }
+
+    #[test]
+    fn parses_rpm_and_pacman_package_rows_without_paths_or_controls() {
+        let rpm = parse_rpm_packages("openssl\t3.2.1-4.fc42\tx86_64\ninvalid\\name\t1.0\tnoarch\n");
+        assert_eq!(rpm.len(), 1);
+        assert_eq!(rpm[0].source, "RPM packages");
+        let pacman = parse_pacman_packages("linux 6.12.1-arch1-1\npackage with spaces\n");
+        assert_eq!(pacman.len(), 1);
+        assert_eq!(pacman[0].name, "linux");
+        assert_eq!(pacman[0].source, "Arch packages (pacman)");
     }
 }

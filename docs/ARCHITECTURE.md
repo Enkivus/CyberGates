@@ -47,7 +47,7 @@ CyberGates is a Tauri 2 desktop application:
 | `services::reports` | Sanitized JSON/HTML audit and incident report generation into the app data directory. |
 | `services::modules` | Honest per-module capability status shown in the UI. |
 | `core::scoring` | Pure scoring and finding construction; unit-tested. |
-| `platform` | `PlatformAudit` trait; macOS posture and inventory adapter, Linux read-only network/startup/current-user systemd inventories, and unsupported fallback. Linux posture checks remain unavailable. |
+| `platform` | `PlatformAudit` trait; macOS posture and inventory adapter, Linux read-only package/network/startup/current-user systemd inventories, and unsupported fallback. Linux posture checks remain unavailable. |
 | `security::process` | Spawns programs with argument arrays, hard timeout, output cap. |
 | `security::validate` | Input bounds, settings allowlist, report format, path helpers. |
 | `db` | Migrations, audit/finding/settings/log repositories, retention pruning. |

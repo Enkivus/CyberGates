@@ -32,6 +32,10 @@ Status is based on code presence **and verification**, not screen existence.
 
 - 🟡 Installed-software inventory on macOS: applications via `system_profiler`,
   Homebrew formulae via `brew list --versions`, searchable with signature/trust data
+- 🟡 Linux package name/version inventory through [dpkg-query](https://manpages.debian.org/testing/dpkg/dpkg-query.1.en.html),
+  [RPM query formats](https://rpm.org/docs/latest/man/rpm-queryformat.7), or
+  [pacman -Q](https://man.archlinux.org/man/core/pacman/pacman.8.en) where available;
+  package integrity and vulnerability matching are not implemented
 - 🟡 Optional Homebrew advisory matching: downloads Homebrew's OSV-format advisory
   database (~14 MB), indexes it in SQLite, records fetch time/counts, and only matches
   non-generated, same-version revision patches. Automatically generated boundaries are

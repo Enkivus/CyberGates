@@ -26,6 +26,7 @@ import { formatBytes, formatRelative, titleCase } from "../../lib/format";
 
 function trustLabel(app: InstalledApp): { label: string; tone: string } {
   if (app.source === "Homebrew") return { label: "Homebrew", tone: "text-accent" };
+  if (app.source !== "Application") return { label: "Package metadata", tone: "text-muted" };
   if (app.obtainedFrom === "apple") return { label: "Apple", tone: "text-ok" };
   if (app.signedBy?.startsWith("Developer ID")) {
     return { label: "Developer ID", tone: "text-ok" };
@@ -124,7 +125,8 @@ export function Vulnerabilities() {
   }, [apps, query, source]);
 
   const applicationCount = apps.filter((app) => app.source === "Application").length;
-  const homebrewCount = apps.filter((app) => app.source === "Homebrew").length;
+  const packageApps = apps.filter((app) => app.source !== "Application");
+  const packageSources = Array.from(new Set(packageApps.map((app) => app.source))).sort();
   const unsigned = apps.filter(
     (app) => app.source === "Application" && !app.signedBy && app.obtainedFrom !== "apple",
   ).length;
@@ -393,21 +395,21 @@ export function Vulnerabilities() {
         <KpiCard
           label="Items inventoried"
           value={apps.length}
-          hint="macOS applications + Homebrew"
+          hint="Read-only native software inventory"
           icon={<Boxes className="h-4 w-4" aria-hidden />}
           tone="accent"
         />
         <KpiCard
-          label="Applications"
+          label="Application records"
           value={applicationCount}
-          hint="Discovered via system_profiler"
+          hint="App metadata provided by the operating system"
           icon={<PackageSearch className="h-4 w-4" aria-hidden />}
           tone="neutral"
         />
         <KpiCard
-          label="Homebrew packages"
-          value={homebrewCount}
-          hint={homebrewCount === 0 ? "Homebrew not detected" : "Formulae listed by brew"}
+          label="Package records"
+          value={packageApps.length}
+          hint={packageSources.length === 0 ? "No package manager reported" : packageSources.join(", ")}
           icon={<Boxes className="h-4 w-4" aria-hidden />}
           tone="neutral"
         />
@@ -469,7 +471,7 @@ export function Vulnerabilities() {
             title={apps.length === 0 ? "No software inventory available" : "No matches"}
             description={
               apps.length === 0
-                ? "The native inventory provider returned nothing. On unsupported platforms this module is unavailable; on macOS, system_profiler may have failed."
+                ? "The native inventory provider returned nothing. On macOS, system_profiler may have failed; on Linux, no supported package database may be available."
                 : "Adjust the search or source filter."
             }
           />
@@ -537,9 +539,11 @@ export function Vulnerabilities() {
           <PanelHeader title="Coverage and limits" />
           <div className="space-y-2 p-5 text-xs leading-relaxed text-muted">
             <p>
-              macOS applications come from <span className="mono">system_profiler</span>;
-              Homebrew formulae come from <span className="mono">brew list --versions</span>.
-              Other package managers and per-user app locations are not covered yet.
+              macOS applications come from <span className="mono">system_profiler</span> and
+              Homebrew formulae from <span className="mono">brew list --versions</span>.
+              Linux package records come from the detected dpkg, RPM, or pacman database.
+              These package records include names and versions only; they are not matched
+              against Linux vulnerability advisories.
             </p>
             <p>
               Signature information is displayed as reported by macOS. It is a trust

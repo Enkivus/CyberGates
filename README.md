@@ -25,6 +25,9 @@ Tauri 2, Rust, React, and TypeScript.
   matching. Automatically generated Homebrew fixed boundaries are treated as
   unverified; matching only considers reviewed records with a same-version revision
   patch. This does not cover all applications or package managers.
+- Linux installed-package name and version inventory through dpkg, RPM, or pacman when
+  one of those package databases is available. Linux packages are not matched against
+  vulnerability advisories yet.
 - Read-only macOS Application Firewall settings and per-application exceptions.
 - Local SHA-256 hashing (up to 64 MiB) and bounded header-signature inspection for a
   user-selected file; contents are read in the webview and never uploaded or executed.
