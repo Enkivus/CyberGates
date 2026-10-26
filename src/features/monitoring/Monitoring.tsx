@@ -375,8 +375,8 @@ export function Monitoring() {
                       <tr key={service.label}>
                         <td className="font-medium">{service.label}</td>
                         <td>
-                          <span className={`chip ${service.pid === null ? "" : "status-pass border-transparent"}`}>
-                            {service.pid === null ? "Registered, idle" : "Running"}
+                          <span className={`chip ${service.state.toLowerCase().includes("running") || service.state.toLowerCase().startsWith("active") ? "status-pass border-transparent" : service.state.toLowerCase().startsWith("failed") ? "status-fail border-transparent" : ""}`}>
+                            {service.state}
                           </span>
                         </td>
                         <td className="mono text-xs text-faint">{service.pid ?? "—"}</td>

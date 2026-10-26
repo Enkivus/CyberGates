@@ -256,6 +256,7 @@ pub struct StartupInventory {
 #[serde(rename_all = "camelCase")]
 pub struct LoadedService {
     pub label: String,
+    pub state: String,
     pub pid: Option<u32>,
     pub last_exit_status: Option<i32>,
 }

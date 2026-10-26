@@ -385,6 +385,16 @@ fn parse_launchctl_services(text: &str) -> Vec<LoadedService> {
         }
         services.push(LoadedService {
             label,
+            state: if fields[0]
+                .parse::<u32>()
+                .ok()
+                .filter(|pid| *pid > 0)
+                .is_some()
+            {
+                "Running".to_string()
+            } else {
+                "Registered, idle".to_string()
+            },
             pid: fields[0].parse::<u32>().ok().filter(|pid| *pid > 0),
             last_exit_status: fields[1].parse::<i32>().ok(),
         });

@@ -15,8 +15,12 @@ Tauri 2, Rust, React, and TypeScript.
   backup metadata, and XProtect presence.
 - System and process inventory, macOS launchd startup-file and current-user loaded-job
   inventories, and read-only TCP/UDP socket inventory.
-- Read-only network interface and configured DNS resolver inventory on macOS. Resolver
-  addresses are shown as configured; CyberGates does not rate their trustworthiness.
+- Linux read-only interface/DNS configuration, XDG autostart file names, enabled
+  systemd service unit files, and current-user loaded service states. Linux posture
+  security checks and socket ownership are not yet implemented.
+- Read-only network interface and configured DNS resolver inventory on macOS and Linux.
+  Linux may expose only a local stub resolver. Resolver addresses are shown as
+  configured; CyberGates does not rate their trustworthiness.
 - Installed application and Homebrew inventory, plus optional Homebrew advisory
   matching. Automatically generated Homebrew fixed boundaries are treated as
   unverified; matching only considers reviewed records with a same-version revision
@@ -26,6 +30,9 @@ Tauri 2, Rust, React, and TypeScript.
   user-selected file; contents are read in the webview and never uploaded or executed.
   Signature and extension checks are best-effort and do not determine whether a file is
   safe.
+- User-triggered DNS resolution and TLS certificate validation for one host on port
+  443. Host diagnostics disclose the name to the configured resolver and target host,
+  send no HTTP request, and do not provide reputation verdicts.
 - Local audit history, findings with severity/date filters, configurable retention,
   activity log, and JSON/HTML reports.
 - Local incident cases created from open posture findings, with linked evidence,

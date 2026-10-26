@@ -47,7 +47,7 @@ CyberGates is a Tauri 2 desktop application:
 | `services::reports` | Sanitized JSON/HTML audit and incident report generation into the app data directory. |
 | `services::modules` | Honest per-module capability status shown in the UI. |
 | `core::scoring` | Pure scoring and finding construction; unit-tested. |
-| `platform` | `PlatformAudit` trait; macOS adapter for posture, networking, startup files and current-user launchd jobs; unsupported fallback. |
+| `platform` | `PlatformAudit` trait; macOS posture and inventory adapter, Linux read-only network/startup/current-user systemd inventories, and unsupported fallback. Linux posture checks remain unavailable. |
 | `security::process` | Spawns programs with argument arrays, hard timeout, output cap. |
 | `security::validate` | Input bounds, settings allowlist, report format, path helpers. |
 | `db` | Migrations, audit/finding/settings/log repositories, retention pruning. |
@@ -118,8 +118,11 @@ mode is on. Retention pruning deletes old audits (findings cascade) and log entr
 tested before claiming support.
 
 - **macOS:** read-only native tooling; implemented.
-- **Windows/Linux:** compile and run, but only report "adapter unavailable". They make
-  no security claims and produce no score.
+- **Linux:** read-only network address/DNS configuration, XDG autostart names, enabled
+  systemd unit files, and current-user loaded service states are available. The posture
+  audit remains unavailable and makes no security score or protection claim.
+- **Windows:** compile and run, but report "adapter unavailable" for native audits;
+  no posture score or protection claim is made.
 
 Adding an adapter must not change the UI contract; capability states are data.
 
@@ -144,13 +147,16 @@ Adding an adapter must not change the UI contract; capability states are data.
 - `components/ui.tsx` — design system primitives (panels, badges, score ring, states).
 - `components/ModulePage.tsx` — honest status layout for unimplemented/partial modules.
 - `features/overview` — dashboard, score explanation, findings, posture checks.
-- `features/monitoring` — process table, startup files, and current-user launchd jobs.
-- `features/network` — read-only connection, interface, and DNS resolver inventory.
+- `features/monitoring` — process table plus macOS launchd and Linux XDG/systemd
+  startup and service inventories.
+- `features/network` — read-only connection and interface/DNS resolver inventory where
+  supported by the native platform adapter.
 - `features/firewall` — read-only Application Firewall state and app rules.
 - `features/vulnerabilities` — software inventory and optional Homebrew advisories.
 - `features/reports` — audit history, findings viewer, exports, activity log.
 - `features/settings` — theme, retention, preferences, storage, limitations.
-- `features/toolkit` — bounded local file hashing, metadata, and header-signature inspection.
+- `features/toolkit` — bounded local file hashing, metadata, header signatures, and
+  user-triggered DNS/TLS diagnostics.
 - `features/modules` — per-module capability descriptions.
 
 Business logic stays in Rust; the UI formats and presents.

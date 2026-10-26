@@ -149,6 +149,7 @@ export interface StartupInventory {
 
 export interface LoadedService {
   label: string;
+  state: string;
   pid: number | null;
   lastExitStatus: number | null;
 }

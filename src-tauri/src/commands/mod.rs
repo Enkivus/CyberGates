@@ -134,11 +134,18 @@ pub async fn diagnose_host(state: State<'_, AppState>, host: String) -> AppResul
         }
     }
     let guard = DiagnosticGuard(state.host_diagnostic_running.clone());
-    tauri::async_runtime::spawn_blocking(move || {
+    let task = tauri::async_runtime::spawn_blocking(move || {
         let _guard = guard;
         services::diagnostics::diagnose_host(&host)
-    })
+    });
+    tokio::time::timeout(std::time::Duration::from_secs(30), task)
         .await
+        .map_err(|_| {
+            AppError::Task(
+                "host diagnostic timed out; the operating system resolver may still be finishing"
+                    .to_string(),
+            )
+        })?
         .map_err(|err| AppError::Task(err.to_string()))?
 }
 

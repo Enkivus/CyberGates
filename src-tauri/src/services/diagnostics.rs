@@ -24,7 +24,7 @@ pub fn diagnose_host(input: &str) -> AppResult<HostDiagnostic> {
         addresses: addresses.iter().map(ToString::to_string).collect(),
         addresses_truncated,
         tls,
-        scope_note: "DNS uses the operating system's configured resolver. TLS tries at most 4 resolved addresses on TCP port 443, with bounded connect and handshake timeouts, and validates the certificate chain and host name using the bundled Mozilla root set. No HTTP request or application data is sent.".to_string(),
+        scope_note: "Host-name lookups use the operating system's configured resolver. TLS tries at most 4 resolved addresses on TCP port 443, with bounded connect and handshake timeouts, and validates the certificate chain and host name using the bundled Mozilla root set. The IPC request has a 30-second limit; a slow system resolver may keep the single diagnostic slot busy until it returns. No HTTP request or application data is sent.".to_string(),
     })
 }
 
@@ -32,17 +32,16 @@ fn validate_host(input: &str) -> AppResult<String> {
     let host = input.trim();
     if host.is_empty() || host.len() > 253 {
         return Err(AppError::Validation(
-            "host must contain between 1 and 253 characters".to_string(),
+            "host must contain between 1 and 253 bytes".to_string(),
         ));
     }
-    if host.chars().any(|c| c.is_control() || c.is_whitespace())
-        || host.contains(['/', '\\', '@', ':', '?', '#'])
+    if (host.chars().any(|c| c.is_control() || c.is_whitespace())
+        || host.contains(['/', '\\', '@', ':', '?', '#']))
+        && host.parse::<IpAddr>().is_err()
     {
-        if host.parse::<IpAddr>().is_err() {
-            return Err(AppError::Validation(
-                "enter a host name or IP address without a URL scheme, port, or path".to_string(),
-            ));
-        }
+        return Err(AppError::Validation(
+            "enter a host name or IP address without a URL scheme, port, or path".to_string(),
+        ));
     }
 
     if let Ok(address) = host.parse::<IpAddr>() {
@@ -222,5 +221,13 @@ mod tests {
     fn bounds_reported_resolver_errors() {
         assert!(short_error(&"x".repeat(1000)).len() <= 240);
         assert!(!short_error("bad\ninput").contains('\n'));
+    }
+
+    #[test]
+    fn no_tls_addresses_never_claim_verification() {
+        let result = probe_tls("localhost", &[]);
+        assert!(!result.verified);
+        assert!(result.peer_address.is_none());
+        assert!(result.error.is_some());
     }
 }

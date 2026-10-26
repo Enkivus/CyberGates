@@ -57,10 +57,12 @@ export function HostDiagnostics() {
         <div className="flex items-start gap-2 rounded-lg border border-warn/30 bg-warn-soft px-3 py-2 text-xs leading-relaxed text-muted">
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warn" aria-hidden />
           <p>
-            When submitted, the host is sent to your configured DNS resolver and a TLS
-            handshake is opened to its port 443. The remote host can observe the connection
-            and TLS server name. CyberGates sends no HTTP request, stores no lookup history,
-            and does not assess reputation or safety.
+            Host names are queried through your configured DNS resolver; IP literals are
+            used directly. A TLS handshake is opened to port 443, so the resolver and
+            remote host can observe the name and connection. CyberGates sends no HTTP
+            request, stores no lookup history, and does not assess reputation or safety.
+            The request is capped at 30 seconds; a slow system resolver can keep this
+            diagnostic unavailable until the resolver returns.
           </p>
         </div>
 

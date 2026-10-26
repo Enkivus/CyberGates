@@ -1,6 +1,6 @@
 # Feature Status
 
-Last updated: 2026-10-25 · v0.1.0
+Last updated: 2026-10-26 · v0.1.0
 
 Status is based on code presence **and verification**, not screen existence.
 ✅ implemented · 🟡 partial · ⬜ not started · ⛔ unavailable by design
@@ -13,7 +13,9 @@ Status is based on code presence **and verification**, not screen existence.
 - ✅ Recommended actions ordered by severity with evidence, fix, verification
 - ✅ First-run audit, re-run, interrupted-audit recovery
 - ✅ Device snapshot and coverage disclosure
-- 🟡 Windows/Linux adapters (explicitly unavailable, no score)
+- 🟡 Linux read-only network, startup, and current-user service inventories are available;
+  verified Linux posture checks are still unavailable and no score is produced
+- ⛔ Windows has no native adapter and no score
 
 ## 2. Threat Protection
 
@@ -42,6 +44,8 @@ Status is based on code presence **and verification**, not screen existence.
 - ✅ Read-only TCP/UDP socket inventory with process/PID where exposed
 - ✅ macOS interface addresses and configured DNS resolver inventory (no DNS trust or
   reputation verdicts)
+- 🟡 Linux interface addresses and configured `/etc/resolv.conf` nameserver entries;
+  systemd stub resolvers may hide upstream DNS servers
 - ✅ User-triggered DNS lookup and TLS certificate/handshake diagnostics in the toolkit;
   no HTTP request or reputation verdict
 - ✅ Filters, counts, explicit scope warning
@@ -63,7 +67,10 @@ Status is based on code presence **and verification**, not screen existence.
   lists file names, paths, scope, and modification time only
 - 🟡 macOS current-user launchd job list with running PID and last exit status;
   system daemons and all Login Items are not covered
-- ⬜ Windows/Linux startup sources
+- 🟡 Linux XDG autostart file names and enabled systemd service unit files; contents are
+  not executed or interpreted, and enabled units do not necessarily run at boot
+- Linux desktop autostart coverage follows the [freedesktop autostart specification](https://specifications.freedesktop.org/autostart/latest/);
+  the inventory intentionally reports candidate files rather than interpreting desktop-entry policy
 - ⬜ Security event monitoring and behavior detection
 - ⛔ No process termination yet
 
@@ -98,7 +105,10 @@ Status is based on code presence **and verification**, not screen existence.
 
 - 🟡 Local SHA-256 (max 64 MiB), basic metadata, and first-4-KiB signature checks for
   one user-selected file; signature/extension mismatch is informational only
-- ⬜ Signatures/certificates, DNS/IP/TLS diagnostics, log viewer, decoders
+- 🟡 User-triggered DNS resolution and TLS validation for one host on port 443; unit
+  checks pass, but a live handshake was not verified in this sandbox
+- ⬜ Certificate details beyond leaf fingerprint, IP/domain reputation, log viewer,
+  decoders, and report builder
 - ⛔ No exploit, credential-theft, stealth, or destructive tools
 
 ## 13. Device Management
@@ -137,7 +147,7 @@ Status is based on code presence **and verification**, not screen existence.
    boundaries.
 2. Malware engine integration behind a trait + quarantine with safety controls.
 3. Security event monitoring and a searchable timeline.
-4. Windows and Linux audit adapters, tested on each platform.
+4. Verified Linux posture adapter and Windows native adapter, tested on each platform.
 5. Firewall rule read/apply/revert with impact preview and audit trail.
 6. Build remaining toolkit diagnostics and safe response workflows; keep AI and
    multi-device features unavailable until consent, backend, and threat controls exist.

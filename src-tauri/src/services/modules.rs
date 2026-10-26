@@ -2,6 +2,7 @@ use crate::models::ModuleStatus;
 
 pub fn list() -> Vec<ModuleStatus> {
     let macos = cfg!(target_os = "macos");
+    let linux = cfg!(target_os = "linux");
     let status = |implemented: bool| -> &'static str {
         if implemented {
             "partial"
@@ -39,6 +40,8 @@ pub fn list() -> Vec<ModuleStatus> {
             status: if macos { "partial" } else { "unavailable" }.to_string(),
             detail: if macos {
                 "Installed application and Homebrew inventory is live. Homebrew patch-declared CVEs can be matched against a downloaded advisory database with explicit freshness and scope; coverage is not complete.".to_string()
+            } else if linux {
+                "Linux software inventory and package advisory matching are not implemented yet.".to_string()
             } else {
                 "Installed-software inventory is not implemented for this platform yet.".to_string()
             },
@@ -49,6 +52,8 @@ pub fn list() -> Vec<ModuleStatus> {
             status: "partial".to_string(),
             detail: if macos {
                 "Read-only socket, interface-address, and DNS resolver inventory is available. Discovery, scanning, and DNS reputation checks are not implemented.".to_string()
+            } else if linux {
+                "Read-only interface-address and configured resolver inventory is available. Socket ownership, discovery, scanning, and DNS reputation checks are not implemented.".to_string()
             } else {
                 "Read-only network connection and configuration inventory is unavailable on this platform.".to_string()
             },
@@ -69,6 +74,8 @@ pub fn list() -> Vec<ModuleStatus> {
             status: "partial".to_string(),
             detail: if macos {
                 "Process inventory, launchd startup files, and current-user loaded jobs are available. System services, event monitoring, and behavioral detection are not implemented.".to_string()
+            } else if linux {
+                "Process inventory, XDG autostart file listing, enabled systemd service units, and current-user loaded units are available. Event monitoring and behavioral detection are not implemented.".to_string()
             } else {
                 "Process inventory is available; native startup and service inventories are not implemented on this platform.".to_string()
             },
@@ -82,8 +89,8 @@ pub fn list() -> Vec<ModuleStatus> {
         ModuleStatus {
             id: "account".to_string(),
             name: "Account Security".to_string(),
-            status: "planned".to_string(),
-            detail: "No account integrations exist. CyberGates will never collect passwords or authentication codes.".to_string(),
+            status: "partial".to_string(),
+            detail: "A private local checklist is available; marks are temporary and do not inspect accounts or persist. Provider integrations are not implemented. CyberGates will never collect passwords or authentication codes.".to_string(),
         },
         ModuleStatus {
             id: "incident-response".to_string(),
@@ -101,7 +108,7 @@ pub fn list() -> Vec<ModuleStatus> {
             id: "toolkit".to_string(),
             name: "Security Toolkit".to_string(),
             status: "partial".to_string(),
-            detail: "Local SHA-256 and basic metadata inspection are available for a user-selected file up to 64 MiB. Certificate inspection and diagnostics are not implemented.".to_string(),
+            detail: "Local file hashing and bounded signature inspection plus user-triggered DNS/TLS host diagnostics are available. Reputation verdicts, scanning, and broader diagnostics are not implemented.".to_string(),
         },
         ModuleStatus {
             id: "devices".to_string(),

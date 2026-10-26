@@ -58,9 +58,12 @@ pub trait PlatformAudit: Send + Sync {
     }
 }
 
+#[cfg(any(target_os = "linux", test))]
+#[cfg_attr(not(target_os = "linux"), allow(dead_code))]
+mod linux;
 #[cfg(target_os = "macos")]
 mod macos;
-#[cfg(not(target_os = "macos"))]
+#[cfg(all(not(target_os = "macos"), not(target_os = "linux")))]
 mod unsupported;
 
 pub fn adapter() -> Box<dyn PlatformAudit> {
@@ -68,7 +71,11 @@ pub fn adapter() -> Box<dyn PlatformAudit> {
     {
         Box::new(macos::MacOsAdapter)
     }
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(target_os = "linux")]
+    {
+        Box::new(linux::LinuxAdapter)
+    }
+    #[cfg(all(not(target_os = "macos"), not(target_os = "linux")))]
     {
         Box::new(unsupported::UnsupportedAdapter)
     }

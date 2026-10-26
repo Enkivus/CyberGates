@@ -1,0 +1,523 @@
+use std::collections::BTreeMap;
+use std::fs;
+use std::io::Read;
+use std::net::IpAddr;
+use std::path::{Path, PathBuf};
+use std::time::Duration;
+
+use chrono::{DateTime, Utc};
+
+use crate::error::AppResult;
+use crate::models::{
+    now_rfc3339, CheckResult, CheckStatus, LoadedService, LoadedServiceInventory, NetworkInterface,
+    NetworkSnapshot, Severity, StartupInventory, StartupItem,
+};
+use crate::platform::PlatformAudit;
+use crate::security::process::run_optional_with_limit;
+
+const SYSTEMCTL_PATHS: &[&str] = &["/usr/bin/systemctl", "/bin/systemctl"];
+const IP_PATHS: &[&str] = &["/usr/sbin/ip", "/sbin/ip", "/usr/bin/ip", "/bin/ip"];
+const SYSTEMCTL_TIMEOUT: Duration = Duration::from_secs(6);
+const MAX_COMMAND_OUTPUT: usize = 2 * 1024 * 1024;
+const MAX_STARTUP_ITEMS: usize = 1000;
+const MAX_EXAMINED_ENTRIES: usize = 5000;
+
+pub struct LinuxAdapter;
+
+impl PlatformAudit for LinuxAdapter {
+    fn platform_name(&self) -> &'static str {
+        "Linux"
+    }
+
+    // Monitoring inventories exist, but posture checks have not been independently
+    // implemented and verified on Linux. Keep scoring unavailable until then.
+    fn supported(&self) -> bool {
+        false
+    }
+
+    fn notes(&self) -> Vec<String> {
+        vec![
+            "Linux startup configuration and current-user systemd inventories are available.".to_string(),
+            "Native posture checks, firewall, network socket ownership, and software inventory are not implemented; no security score is claimed.".to_string(),
+        ]
+    }
+
+    fn audit(&self) -> Vec<CheckResult> {
+        vec![CheckResult {
+            id: "platform.unsupported".to_string(),
+            title: "Linux posture audit unavailable".to_string(),
+            category: "platform".to_string(),
+            status: CheckStatus::Unavailable,
+            severity: Severity::Info,
+            weight: 0,
+            evidence: "Operating system: Linux".to_string(),
+            explanation: "CyberGates has partial Linux monitoring inventories but does not yet implement verified Linux security-posture checks. No protection status or score is claimed.".to_string(),
+            remediation: "Use the available read-only inventories; re-run the audit after a verified Linux posture adapter is released.".to_string(),
+            verification: "Check the platform capability matrix for Linux audit coverage.".to_string(),
+            source: "CyberGates capability detection".to_string(),
+            checked_at: now_rfc3339(),
+        }]
+    }
+
+    fn network_snapshot(&self) -> AppResult<NetworkSnapshot> {
+        let mut warnings = Vec::new();
+        let output = IP_PATHS.iter().find_map(|path| {
+            run_optional_with_limit(
+                path,
+                &["-o", "address", "show"],
+                SYSTEMCTL_TIMEOUT,
+                MAX_COMMAND_OUTPUT,
+            )
+        });
+        let (available, interfaces) = match output {
+            Some(output) if output.success => (true, parse_ip_addresses(&output.stdout)),
+            Some(_) => {
+                warnings.push("The ip utility could not read interface addresses.".to_string());
+                (false, Vec::new())
+            }
+            None => {
+                warnings
+                    .push("The ip utility was not available at known system paths.".to_string());
+                (false, Vec::new())
+            }
+        };
+        if interfaces.len() >= 256 {
+            warnings.push("Interface inventory was capped at 256 interfaces.".to_string());
+        }
+        let dns_servers = read_resolver_config(&mut warnings);
+        Ok(NetworkSnapshot {
+            available,
+            interfaces,
+            dns_servers,
+            fetched_at: now_rfc3339(),
+            source: "Linux ip utility, sysfs, and /etc/resolv.conf".to_string(),
+            scope_note: "Lists interface addresses visible to the current user and nameserver entries in /etc/resolv.conf. A local stub resolver may be shown instead of upstream DNS servers. This does not assess DNS trust, reputation, or reachability.".to_string(),
+            warnings,
+        })
+    }
+
+    fn startup_inventory(&self) -> AppResult<StartupInventory> {
+        let mut items = Vec::new();
+        let mut warnings = Vec::new();
+        let mut examined = 0usize;
+        let mut truncated = false;
+
+        for (directory, scope) in autostart_directories() {
+            match fs::read_dir(&directory) {
+                Ok(entries) => {
+                    for entry in entries {
+                        if examined >= MAX_EXAMINED_ENTRIES || items.len() >= MAX_STARTUP_ITEMS {
+                            truncated = true;
+                            break;
+                        }
+                        examined += 1;
+                        let Ok(entry) = entry else {
+                            continue;
+                        };
+                        if let Some(item) = desktop_startup_item(&entry.path(), scope) {
+                            items.push(item);
+                        }
+                    }
+                }
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+                Err(_) => warnings.push(format!(
+                    "Could not read startup directory {}.",
+                    directory.display()
+                )),
+            }
+        }
+
+        if let Some(output) = run_systemctl(&[
+            "list-unit-files",
+            "--type=service",
+            "--state=enabled,enabled-runtime",
+            "--no-legend",
+            "--no-pager",
+        ]) {
+            if output.success {
+                items.extend(parse_enabled_unit_files(&output.stdout, "System"));
+            } else {
+                warnings.push("System systemd enabled-unit state could not be read.".to_string());
+            }
+        } else {
+            warnings.push(
+                "systemctl was not available; enabled system units were not inspected.".to_string(),
+            );
+        }
+
+        if let Some(output) = run_systemctl(&[
+            "--user",
+            "list-unit-files",
+            "--type=service",
+            "--state=enabled,enabled-runtime",
+            "--no-legend",
+            "--no-pager",
+        ]) {
+            if output.success {
+                items.extend(parse_enabled_unit_files(&output.stdout, "Current user"));
+            } else {
+                warnings
+                    .push("Current-user systemd enabled-unit state could not be read.".to_string());
+            }
+        } else {
+            warnings.push(
+                "systemctl was not available; enabled user units were not inspected.".to_string(),
+            );
+        }
+
+        if items.len() > MAX_STARTUP_ITEMS {
+            items.truncate(MAX_STARTUP_ITEMS);
+            truncated = true;
+        }
+        if truncated {
+            warnings.push(format!(
+                "Startup inventory was capped at {MAX_STARTUP_ITEMS} items after examining at most {MAX_EXAMINED_ENTRIES} directory entries."
+            ));
+        }
+        items.sort_by(|left, right| {
+            left.scope
+                .cmp(&right.scope)
+                .then_with(|| left.name.to_lowercase().cmp(&right.name.to_lowercase()))
+        });
+        items.dedup_by(|left, right| left.scope == right.scope && left.name == right.name);
+
+        Ok(StartupInventory {
+            available: true,
+            items,
+            fetched_at: now_rfc3339(),
+            source: "Linux XDG autostart directories and systemd unit files".to_string(),
+            scope_note: "Lists regular .desktop files in system/current-user XDG autostart directories and systemd service units marked enabled. File presence does not prove a desktop entry is enabled or executed; enabled systemd units may be activated by their target rather than at boot. No referenced program is inspected.".to_string(),
+            warnings,
+        })
+    }
+
+    fn loaded_services(&self) -> AppResult<LoadedServiceInventory> {
+        let output = SYSTEMCTL_PATHS.iter().find_map(|path| {
+            run_optional_with_limit(
+                path,
+                &[
+                    "--user",
+                    "list-units",
+                    "--type=service",
+                    "--all",
+                    "--no-legend",
+                    "--no-pager",
+                    "--plain",
+                ],
+                SYSTEMCTL_TIMEOUT,
+                MAX_COMMAND_OUTPUT,
+            )
+        });
+
+        let (available, services, warnings) = match output {
+            Some(output) if output.success => {
+                let (services, truncated) = parse_loaded_systemd_units(&output.stdout);
+                let warnings = if truncated {
+                    vec![
+                        "Current-user loaded-service inventory was capped at 2,000 units."
+                            .to_string(),
+                    ]
+                } else {
+                    Vec::new()
+                };
+                (true, services, warnings)
+            }
+            Some(_) => (
+                false,
+                Vec::new(),
+                vec!["systemd could not access the current user's service manager.".to_string()],
+            ),
+            None => (
+                false,
+                Vec::new(),
+                vec!["systemctl was unavailable or timed out.".to_string()],
+            ),
+        };
+
+        Ok(LoadedServiceInventory {
+            available,
+            services,
+            fetched_at: now_rfc3339(),
+            source: "systemd --user list-units".to_string(),
+            scope_note: "Shows units currently loaded by the current user's systemd manager, including inactive loaded units. PID and last-exit status are not included by this provider. System services are excluded; no unit is started, stopped, or changed.".to_string(),
+            warnings,
+        })
+    }
+}
+
+fn autostart_directories() -> Vec<(PathBuf, &'static str)> {
+    let system_dirs: Vec<PathBuf> = std::env::var_os("XDG_CONFIG_DIRS")
+        .map(|value| {
+            let paths = PathBuf::from(value);
+            std::env::split_paths(&paths)
+                .filter(|path| path.is_absolute())
+                .collect::<Vec<PathBuf>>()
+        })
+        .filter(|paths| !paths.is_empty())
+        .unwrap_or_else(|| vec![PathBuf::from("/etc/xdg")]);
+    let mut directories: Vec<_> = system_dirs
+        .into_iter()
+        .map(|directory| (directory.join("autostart"), "System"))
+        .collect();
+    let user_config = std::env::var_os("XDG_CONFIG_HOME")
+        .map(PathBuf::from)
+        .filter(|path| path.is_absolute())
+        .or_else(|| dirs::home_dir().map(|home| home.join(".config")));
+    if let Some(user_config) = user_config {
+        directories.push((user_config.join("autostart"), "Current user"));
+    }
+    directories.dedup_by(|left, right| left.0 == right.0);
+    directories
+}
+
+fn desktop_startup_item(path: &Path, scope: &str) -> Option<StartupItem> {
+    if path.extension()?.to_string_lossy().to_ascii_lowercase() != "desktop" {
+        return None;
+    }
+    let metadata = fs::symlink_metadata(path).ok()?;
+    if !metadata.file_type().is_file() {
+        return None;
+    }
+    let file_name = path.file_name()?.to_string_lossy();
+    if file_name.len() > 255 || file_name.chars().any(char::is_control) {
+        return None;
+    }
+    Some(StartupItem {
+        name: path.file_stem()?.to_string_lossy().to_string(),
+        path: path.to_string_lossy().to_string(),
+        scope: scope.to_string(),
+        modified_at: metadata
+            .modified()
+            .ok()
+            .map(|time| DateTime::<Utc>::from(time).to_rfc3339()),
+    })
+}
+
+fn parse_enabled_unit_files(text: &str, scope: &str) -> Vec<StartupItem> {
+    text.lines()
+        .take(10_000)
+        .filter_map(|line| {
+            let fields: Vec<_> = line.split_whitespace().take(3).collect();
+            let [unit, state, _preset] = fields.as_slice() else {
+                return None;
+            };
+            if !unit.ends_with(".service")
+                || !matches!(*state, "enabled" | "enabled-runtime")
+                || unit.len() > 255
+                || unit.chars().any(char::is_control)
+            {
+                return None;
+            }
+            Some(StartupItem {
+                name: (*unit).to_string(),
+                path: format!("systemd enabled unit: {unit}"),
+                scope: scope.to_string(),
+                modified_at: None,
+            })
+        })
+        .collect()
+}
+
+fn parse_loaded_systemd_units(text: &str) -> (Vec<LoadedService>, bool) {
+    let mut services = Vec::new();
+    let mut truncated = false;
+    for line in text.lines().take(10_000) {
+        let fields: Vec<_> = line.split_whitespace().collect();
+        if fields.len() < 4
+            || !fields[0].ends_with(".service")
+            || fields[0].len() > 255
+            || fields[0].chars().any(char::is_control)
+        {
+            continue;
+        }
+        if services.len() == 2000 {
+            truncated = true;
+            break;
+        }
+        services.push(LoadedService {
+            label: fields[0].to_string(),
+            state: systemd_state(fields[2], fields[3]),
+            pid: None,
+            last_exit_status: None,
+        });
+    }
+    services.sort_by(|left, right| left.label.cmp(&right.label));
+    (services, truncated)
+}
+
+fn systemd_state(active: &str, sub: &str) -> String {
+    let active = match active {
+        "active" => "Active",
+        "inactive" => "Inactive",
+        "failed" => "Failed",
+        "activating" => "Starting",
+        "deactivating" => "Stopping",
+        other => other,
+    };
+    format!("{active} ({sub})")
+}
+
+fn run_systemctl(args: &[&str]) -> Option<crate::security::process::CommandOutput> {
+    SYSTEMCTL_PATHS
+        .iter()
+        .find_map(|path| run_optional_with_limit(path, args, SYSTEMCTL_TIMEOUT, MAX_COMMAND_OUTPUT))
+}
+
+fn parse_ip_addresses(text: &str) -> Vec<NetworkInterface> {
+    let mut interfaces: BTreeMap<String, Vec<String>> = BTreeMap::new();
+    for line in text.lines().take(10_000) {
+        let fields: Vec<_> = line.split_whitespace().collect();
+        if fields.len() < 4 || !matches!(fields[2], "inet" | "inet6") {
+            continue;
+        }
+        let name = fields[1].split('@').next().unwrap_or(fields[1]);
+        if name.is_empty()
+            || name.len() > 64
+            || name.contains(['/', '\\'])
+            || name.chars().any(char::is_control)
+        {
+            continue;
+        }
+        let address = fields[3].split('/').next().unwrap_or("");
+        if address.parse::<IpAddr>().is_err() {
+            continue;
+        }
+        let addresses = interfaces.entry(name.to_string()).or_default();
+        if !addresses.iter().any(|item| item == address) {
+            addresses.push(address.to_string());
+        }
+    }
+
+    interfaces
+        .into_iter()
+        .take(256)
+        .map(|(name, mut addresses)| {
+            addresses.sort();
+            let up = read_interface_state(&name).unwrap_or(false);
+            NetworkInterface {
+                name,
+                addresses,
+                up,
+            }
+        })
+        .collect()
+}
+
+fn read_interface_state(name: &str) -> Option<bool> {
+    if name.is_empty() || name.contains(['/', '\\']) || name == "." || name == ".." {
+        return None;
+    }
+    let state =
+        fs::read_to_string(Path::new("/sys/class/net").join(name).join("operstate")).ok()?;
+    Some(matches!(state.trim(), "up" | "unknown"))
+}
+
+fn read_resolver_config(warnings: &mut Vec<String>) -> Vec<String> {
+    let file = match fs::File::open("/etc/resolv.conf") {
+        Ok(file) => file,
+        Err(_) => {
+            warnings.push("/etc/resolv.conf could not be read.".to_string());
+            return Vec::new();
+        }
+    };
+    let mut text = String::new();
+    match file.take(256 * 1024 + 1).read_to_string(&mut text) {
+        Ok(bytes_read) if bytes_read <= 256 * 1024 => {}
+        Ok(_) => {
+            warnings.push("/etc/resolv.conf exceeded the 256 KiB read limit.".to_string());
+            return Vec::new();
+        }
+        Err(_) => {
+            warnings.push("/etc/resolv.conf could not be read.".to_string());
+            return Vec::new();
+        }
+    }
+    parse_resolver_text(&text, warnings)
+}
+
+fn parse_resolver_text(text: &str, warnings: &mut Vec<String>) -> Vec<String> {
+    let mut servers = Vec::new();
+    for line in text.lines().take(4096) {
+        let mut fields = line.split('#').next().unwrap_or("").split_whitespace();
+        if fields.next() != Some("nameserver") {
+            continue;
+        }
+        let Some(address) = fields.next() else {
+            continue;
+        };
+        if address.parse::<IpAddr>().is_ok()
+            && !servers.iter().any(|item| item == address)
+            && servers.len() < 16
+        {
+            servers.push(address.to_string());
+        }
+    }
+    if text.lines().count() > 4096 {
+        warnings.push("Resolver configuration was capped at 4,096 lines.".to_string());
+    }
+    servers
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parses_only_enabled_systemd_service_units() {
+        let items = parse_enabled_unit_files(
+            "alpha.service enabled enabled\nbeta.service disabled enabled\nhelper.socket enabled enabled\nworker.service enabled-runtime disabled\n",
+            "Current user",
+        );
+        assert_eq!(items.len(), 2);
+        assert_eq!(items[0].name, "alpha.service");
+        assert_eq!(items[1].name, "worker.service");
+        assert!(items.iter().all(|item| item.scope == "Current user"));
+    }
+
+    #[test]
+    fn parses_loaded_unit_state_without_guessing_pid_or_exit_status() {
+        let (services, truncated) = parse_loaded_systemd_units(
+            "dbus.service loaded active running D-Bus System Message Bus\ncache.service loaded inactive dead Local cache\nfailed.service loaded failed failed Failed service\nnot-a-unit loaded active running ignored\n",
+        );
+        assert!(!truncated);
+        assert_eq!(services.len(), 3);
+        assert_eq!(services[0].label, "cache.service");
+        assert_eq!(services[0].state, "Inactive (dead)");
+        assert_eq!(services[0].pid, None);
+        assert_eq!(services[2].state, "Failed (failed)");
+    }
+
+    #[test]
+    fn desktop_inventory_accepts_regular_desktop_files_only() {
+        let root =
+            std::env::temp_dir().join(format!("cybergates-linux-startup-{}", uuid::Uuid::new_v4()));
+        fs::create_dir_all(&root).unwrap();
+        let desktop = root.join("example.desktop");
+        fs::write(&desktop, "untrusted content is not parsed").unwrap();
+        let item = desktop_startup_item(&desktop, "Current user").unwrap();
+        assert_eq!(item.name, "example");
+        assert_eq!(item.scope, "Current user");
+        assert!(desktop_startup_item(&root.join("notes.txt"), "System").is_none());
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn parses_linux_interface_addresses_and_deduplicates() {
+        let interfaces = parse_ip_addresses(
+            "2: enp0s1    inet 192.0.2.10/24 brd 192.0.2.255 scope global enp0s1\n2: enp0s1    inet 192.0.2.10/24 brd 192.0.2.255 scope global enp0s1\n2: enp0s1    inet6 2001:db8::10/64 scope global enp0s1\n",
+        );
+        assert_eq!(interfaces.len(), 1);
+        assert_eq!(interfaces[0].name, "enp0s1");
+        assert_eq!(interfaces[0].addresses, ["192.0.2.10", "2001:db8::10"]);
+    }
+
+    #[test]
+    fn parses_resolver_config_without_directives_or_invalid_addresses() {
+        let mut warnings = Vec::new();
+        let servers = parse_resolver_text(
+            "# generated\nnameserver 127.0.0.53\nnameserver 2001:db8::53 # v6\nsearch local\nnameserver invalid\n",
+            &mut warnings,
+        );
+        assert_eq!(servers, ["127.0.0.53", "2001:db8::53"]);
+    }
+}

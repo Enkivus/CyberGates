@@ -1,8 +1,9 @@
 # Platform Capability Matrix
 
-Status reflects **verified behavior in this repository as of v0.1.0**. "Unsupported"
-means the app runs but reports that no native adapter exists; it makes no security
-claims. Do not upgrade a status without building and testing on that platform.
+Status reflects **verified behavior in this repository as of v0.1.0**. A platform can
+have partial read-only inventories while its posture audit remains unavailable; no
+security score or protection claim is made for an unverified audit adapter. Do not
+upgrade a status without building and testing on that platform.
 
 Legend: ✅ implemented and tested · 🟡 partial · ⛔ explicitly unavailable · ⬜ planned
 
@@ -33,11 +34,12 @@ Legend: ✅ implemented and tested · 🟡 partial · ⛔ explicitly unavailable
 | Vulnerability advisory matching | 🟡 Homebrew revision patches | ⛔ | ⛔ |
 | Advisory database update (manual) | ✅ ~14 MB download | ⛔ | ⛔ |
 | Process inventory | ✅ | ⬜ | ⬜ |
-| Loaded service inventory | 🟡 current-user launchd jobs | ⬜ | ⬜ |
+| Loaded service inventory | 🟡 current-user launchd jobs | ⬜ | 🟡 current-user systemd units |
 | Event monitoring / timeline | ⬜ | ⬜ | ⬜ |
 | Network connection inventory | ✅ read-only | ⛔ | ⛔ |
-| Network interface address inventory | ✅ read-only | ⛔ | ⛔ |
-| Configured DNS resolver inventory | ✅ read-only | ⛔ | ⛔ |
+| Network interface address inventory | ✅ read-only | ⛔ | 🟡 read-only |
+| Configured DNS resolver inventory | ✅ read-only | ⛔ | 🟡 `/etc/resolv.conf` (may be a local stub) |
+| Startup inventory | 🟡 launchd files and jobs | ⛔ | 🟡 XDG files and enabled systemd units |
 | DNS trust / reputation verdicts | ⬜ | ⬜ | ⬜ |
 | Network discovery / port scanning | ⬜ | ⬜ | ⬜ |
 | Privacy / app permission audit | 🟡 core signals | ⛔ | ⛔ |
@@ -62,9 +64,13 @@ Legend: ✅ implemented and tested · 🟡 partial · ⛔ explicitly unavailable
 
 ## Windows/Linux specifics
 
-- The app compiles and its unsupported adapter reports a single "platform audit
-  adapter unavailable" check with score `null`.
+- Linux exposes read-only interface/DNS, startup-file/enabled-unit, and current-user
+  systemd service inventories. Its posture adapter still reports a single
+  "platform audit unavailable" check with score `null`.
+- Windows has no native adapter and reports a single "platform audit unavailable"
+  check with score `null`.
 - System inventory, process list, and reports still work through cross-platform Rust
   libraries where available.
-- Network connection inventory returns empty with an explanatory UI state.
+- Linux network connection ownership is not implemented; other platforms without a
+  provider return an explanatory empty state.
 - Adding an adapter requires real, tested implementations; do not guess values.
