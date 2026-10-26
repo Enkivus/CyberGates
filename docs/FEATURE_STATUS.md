@@ -109,6 +109,8 @@ Status is based on code presence **and verification**, not screen existence.
 
 - 🟡 Local SHA-256 (max 64 MiB), basic metadata, and first-4-KiB signature checks for
   one user-selected file; signature/extension mismatch is informational only
+- 🟡 JSON structure inspector for selected UTF-8 JSON files up to 1 MiB; summarizes
+  top-level keys/value types or a bounded array sample without displaying values
 - 🟡 User-triggered DNS resolution and TLS validation for one host on port 443; unit
   checks pass, but a live handshake was not verified in this sandbox
 - 🟡 Bounded read-only viewer for recent CyberGates application logs; this is not an

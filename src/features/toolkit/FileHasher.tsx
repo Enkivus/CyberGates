@@ -2,6 +2,7 @@ import { useState } from "react";
 import { FileKey, RefreshCw, ShieldCheck } from "lucide-react";
 import { EmptyState, ErrorState, PageHeader, Panel, PanelHeader } from "../../components/ui";
 import { formatFileSize, inspectFileSignature, MAX_HASH_FILE_BYTES, sha256File } from "./fileHash";
+import { JsonInspector } from "./JsonInspectorPanel";
 
 export function FileHasher() {
   const [file, setFile] = useState<File | null>(null);
@@ -147,10 +148,13 @@ export function FileHasher() {
         </div>
       </Panel>
       <div className="mt-5">
+        <JsonInspector file={file} />
+      </div>
+      <div className="mt-5">
         <Panel className="p-5">
           <h2 className="font-semibold text-ink">More toolkit capabilities</h2>
           <p className="mt-2 text-sm leading-relaxed text-muted">
-            Certificate chain details, IP/domain reputation, and safe format decoders are not implemented yet. Recent CyberGates application logs are available in the panel below. DNS and TLS checks only inspect the host you enter; they do not provide reputation or safety verdicts.
+            JSON structure inspection is available above. Additional safe format decoders, certificate chain details, and IP/domain reputation are not implemented. Recent CyberGates application logs are available in the Toolkit. DNS and TLS checks only inspect the host you enter; they do not provide reputation or safety verdicts.
             CyberGates does not make reputation or malware claims from a file hash alone.
           </p>
         </Panel>

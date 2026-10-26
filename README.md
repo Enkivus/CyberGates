@@ -33,6 +33,9 @@ Tauri 2, Rust, React, and TypeScript.
   user-selected file; contents are read in the webview and never uploaded or executed.
   Signature and extension checks are best-effort and do not determine whether a file is
   safe.
+- A bounded JSON structure inspector for selected UTF-8 JSON files up to 1 MiB. It
+  reports top-level key and value types without displaying values, executing content,
+  or validating a schema.
 - User-triggered DNS resolution and TLS certificate validation for one host on port
   443. Host diagnostics disclose the name to the configured resolver and target host,
   send no HTTP request, and do not provide reputation verdicts.

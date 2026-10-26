@@ -50,7 +50,7 @@ versus planned. It must be updated whenever a new privileged capability is added
 | Spoofed security findings / false assurance | User makes bad decisions | Findings require evidence; unavailable checks excluded; UI states limitations | Implemented |
 | Prompt injection via logs/filenames (future AI) | Assistant misbehaves | No AI provider exists; future design treats data as untrusted and actions as separate | Planned |
 | Malicious report/HTML injection | Code execution in exported report | All report fields HTML-escaped; local static file only | Implemented |
-| Malicious selected file | Code execution or memory exhaustion | Selected file is never executed; SHA-256 input is capped at 64 MiB and signature inspection reads only the first 4 KiB; no external request is made | Implemented |
+| Malicious selected file | Code execution or memory exhaustion | Selected file is never executed; SHA-256 input is capped at 64 MiB, signature inspection reads only the first 4 KiB, and JSON structure inspection is capped at 1 MiB with bounded output; no external request is made | Implemented |
 | Untrusted incident note | UI script injection or misleading response record | Notes are bounded, rendered as escaped text, and status changes require an explanation; user closure is explicitly not represented as verified remediation | Implemented |
 | Quarantine race/symlink attack (future) | File destruction / escape | Not implemented; mandatory design controls documented | Planned |
 | Firewall misconfiguration by app (future) | Loss of connectivity / exposure | Not implemented; no automatic broad changes; undo/audit required | Planned |

@@ -132,8 +132,9 @@ Adding an adapter must not change the UI contract; capability states are data.
 - No shell, filesystem, HTTP, or opener plugin is exposed to the webview.
 - A user can select one file for local SHA-256 and signature inspection. Hash input is
   capped at 64 MiB; signature inspection reads only the first 4 KiB through the browser
-  file input. Contents are never sent over IPC or uploaded, and the app never executes
-  the selected file.
+  file input. The JSON structure inspector separately reads at most 1 MiB, reports only
+  top-level structure and value types, and omits values. Contents are never sent over
+  IPC or uploaded, and the app never executes the selected file.
 - Commands accept typed parameters; IDs, formats, and setting keys are validated.
 - Process execution lives entirely in Rust, uses argument arrays (no shell string
   concatenation), and imposes timeouts/output caps.
