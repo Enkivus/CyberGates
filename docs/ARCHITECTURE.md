@@ -45,6 +45,7 @@ CyberGates is a Tauri 2 desktop application:
 | `services::network` | Read-only connection and network configuration inventory via platform adapter. |
 | `services::advisories` | Downloads/indexes Homebrew's OSV feed; conservative local matching. |
 | `services::reports` | Sanitized JSON/HTML audit and incident report generation into the app data directory. |
+| `services::logs` | Bounded read-only access to recent CyberGates-owned log files; rejects symlinks and does not expose OS event logs. |
 | `services::modules` | Honest per-module capability status shown in the UI. |
 | `core::scoring` | Pure scoring and finding construction; unit-tested. |
 | `platform` | `PlatformAudit` trait; macOS posture and inventory adapter, Linux read-only package/network/startup/current-user systemd inventories, and unsupported fallback. Linux posture checks remain unavailable. |

@@ -452,3 +452,12 @@ pub struct AuditLogEntry {
     pub detail: String,
     pub outcome: String,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ApplicationLogSnapshot {
+    pub available: bool,
+    pub lines: Vec<String>,
+    pub fetched_at: String,
+    pub warnings: Vec<String>,
+}

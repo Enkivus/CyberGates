@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import type {
   AuditLogEntry,
+  ApplicationLogSnapshot,
   AuditRecord,
   AdvisoryReport,
   AdvisoryUpdate,
@@ -84,5 +85,7 @@ export const api = {
   exportReport: (auditId: string, format: "json" | "html") =>
     call<ReportExport>("export_report", { auditId, format }),
   getAuditLog: (limit = 100) => call<AuditLogEntry[]>("get_audit_log", { limit }),
+  getApplicationLogs: (limit = 200) =>
+    call<ApplicationLogSnapshot>("get_application_logs", { limit }),
   getStorageInfo: () => call<StorageInfo>("get_storage_info"),
 };

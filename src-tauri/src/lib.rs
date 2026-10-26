@@ -84,6 +84,7 @@ pub fn run() {
             commands::update_setting,
             commands::export_report,
             commands::get_audit_log,
+            commands::get_application_logs,
             commands::get_storage_info
         ])
         .run(tauri::generate_context!())

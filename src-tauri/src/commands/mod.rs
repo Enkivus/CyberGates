@@ -3,8 +3,8 @@ use tauri::State;
 
 use crate::error::{AppError, AppResult};
 use crate::models::{
-    AdvisoryReport, AdvisoryUpdate, AuditLogEntry, AuditRecord, Dashboard, Finding,
-    FirewallSnapshot, HostDiagnostic, IncidentDetail, IncidentRecord, InstalledApp,
+    AdvisoryReport, AdvisoryUpdate, ApplicationLogSnapshot, AuditLogEntry, AuditRecord, Dashboard,
+    Finding, FirewallSnapshot, HostDiagnostic, IncidentDetail, IncidentRecord, InstalledApp,
     LoadedServiceInventory, ModuleStatus, NetworkConnection, NetworkSnapshot, ProcessInfo,
     StartupInventory, SystemInfo,
 };
@@ -460,9 +460,23 @@ pub fn export_report(
     state: State<'_, AppState>,
     audit_id: String,
     format: String,
+    finding_ids: Option<Vec<String>>,
 ) -> AppResult<services::reports::ReportExport> {
     let audit_id = validate::bounded_text(&audit_id, "audit id", 64)?;
-    services::reports::export(&state.db, &state.reports_dir, &audit_id, &format)
+    let finding_ids = finding_ids
+        .map(|ids| {
+            ids.into_iter()
+                .map(|id| validate::bounded_text(&id, "finding id", 64))
+                .collect::<AppResult<Vec<_>>>()
+        })
+        .transpose()?;
+    services::reports::export(
+        &state.db,
+        &state.reports_dir,
+        &audit_id,
+        &format,
+        finding_ids,
+    )
 }
 
 #[tauri::command]
@@ -471,6 +485,20 @@ pub fn get_audit_log(
     limit: Option<u32>,
 ) -> AppResult<Vec<AuditLogEntry>> {
     state.db.list_audit_log(limit.unwrap_or(100))
+}
+
+#[tauri::command]
+pub async fn get_application_logs(
+    state: State<'_, AppState>,
+    limit: Option<usize>,
+) -> AppResult<ApplicationLogSnapshot> {
+    let log_dir = state.log_dir.clone();
+    let limit = limit.unwrap_or(200).clamp(1, 500);
+    tauri::async_runtime::spawn_blocking(move || {
+        Ok(services::logs::read_application_logs(&log_dir, limit))
+    })
+    .await
+    .map_err(|err| AppError::Task(err.to_string()))?
 }
 
 #[tauri::command]

@@ -111,8 +111,10 @@ Status is based on code presence **and verification**, not screen existence.
   one user-selected file; signature/extension mismatch is informational only
 - 🟡 User-triggered DNS resolution and TLS validation for one host on port 443; unit
   checks pass, but a live handshake was not verified in this sandbox
-- ⬜ Certificate details beyond leaf fingerprint, IP/domain reputation, log viewer,
-  decoders, and report builder
+- 🟡 Bounded read-only viewer for recent CyberGates application logs; this is not an
+  operating-system security-event viewer
+- ⬜ Certificate details beyond leaf fingerprint, IP/domain reputation, decoders, and
+  report builder
 - ⛔ No exploit, credential-theft, stealth, or destructive tools
 
 ## 13. Device Management
@@ -124,7 +126,9 @@ Status is based on code presence **and verification**, not screen existence.
 - ✅ Audit history, findings viewer, activity log
 - ✅ Severity and detected-date filters for audit findings
 - ✅ Sanitized JSON and HTML export with sensitive-data warning
-- 🟡 Scan/incident report types and OS notifications are not implemented
+- 🟡 Audit and incident JSON/HTML reports are implemented; scan reports depend on the
+  unavailable malware scanner
+- ⬜ OS notification delivery is not implemented; the saved setting is a preference only
 
 ## 15. Settings
 

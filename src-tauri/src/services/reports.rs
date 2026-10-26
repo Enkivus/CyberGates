@@ -36,6 +36,7 @@ struct JsonReport<'a> {
     product: &'a str,
     generated_at: String,
     warning: &'a str,
+    scope: &'a str,
     audit: &'a AuditRecord,
     findings: &'a [Finding],
     factors: &'a [ScoreFactor],
@@ -46,6 +47,7 @@ pub fn export(
     reports_dir: &Path,
     audit_id: &str,
     format: &str,
+    finding_ids: Option<Vec<String>>,
 ) -> AppResult<ReportExport> {
     let format = crate::security::validate::report_format(format)?;
     if !db.audit_exists(audit_id)? {
@@ -56,7 +58,36 @@ pub fn export(
         .into_iter()
         .find(|candidate| candidate.id == audit_id)
         .ok_or_else(|| AppError::NotFound(format!("audit {audit_id}")))?;
-    let findings = db.findings_for_audit(audit_id)?;
+    let all_findings = db.findings_for_audit(audit_id)?;
+    let (findings, scope) = if let Some(ids) = finding_ids {
+        let total = all_findings.len();
+        if ids.len() > 5000 {
+            return Err(AppError::Validation(
+                "A report can include at most 5000 selected findings.".to_string(),
+            ));
+        }
+        let selected: std::collections::HashSet<&str> = ids.iter().map(String::as_str).collect();
+        if selected.len() != ids.len() || ids.iter().any(|id| id.len() > 64) {
+            return Err(AppError::Validation(
+                "Selected finding identifiers must be unique and no longer than 64 characters."
+                    .to_string(),
+            ));
+        }
+        if ids.iter().any(|id| !all_findings.iter().any(|finding| finding.id == *id)) {
+            return Err(AppError::Validation(
+                "A selected finding does not belong to this audit.".to_string(),
+            ));
+        }
+        (
+            all_findings
+                .into_iter()
+                .filter(|finding| selected.contains(finding.id.as_str()))
+                .collect::<Vec<_>>(),
+            format!("Filtered findings: {} of {total} included", selected.len()),
+        )
+    } else {
+        (all_findings, "Full audit report".to_string())
+    };
     let factors: Vec<ScoreFactor> = db
         .factors_for_audit(audit_id)?
         .and_then(|json| serde_json::from_str(&json).ok())
@@ -77,6 +108,7 @@ pub fn export(
                 product: "CyberGates",
                 generated_at: now_rfc3339(),
                 warning,
+                scope: &scope,
                 audit: &audit,
                 findings: &findings,
                 factors: &factors,
@@ -87,7 +119,7 @@ pub fn export(
             contents.len() as u64
         }
         "html" => {
-            let contents = render_html(&audit, &findings, &factors, warning);
+            let contents = render_html(&audit, &findings, &factors, warning, &scope);
             write_private_new(&path, contents.as_bytes())?;
             contents.len() as u64
         }
@@ -221,6 +253,7 @@ fn render_html(
     findings: &[Finding],
     factors: &[ScoreFactor],
     warning: &str,
+    scope: &str,
 ) -> String {
     let mut rows = String::new();
     for finding in findings {
@@ -261,6 +294,7 @@ th{{color:#93a4c7;font-weight:600}} .critical{{color:#ff6b81}} .high{{color:#ff9
 <h1>CyberGates Security Report</h1>
 <div class="muted">Audit {}</div>
 <div class="muted">Platform: {} &middot; Started: {} &middot; Completed: {}</div>
+<div class="muted">{}</div>
 <div class="score">{}</div>
 <div class="muted">Score is derived from the weighted checks below. Unavailable checks are excluded.</div>
 <div class="warn">{}</div>
@@ -274,6 +308,7 @@ th{{color:#93a4c7;font-weight:600}} .critical{{color:#ff6b81}} .high{{color:#ff9
         html_escape(&audit.platform),
         html_escape(&audit.started_at),
         html_escape(audit.finished_at.as_deref().unwrap_or("incomplete")),
+        html_escape(scope),
         audit
             .score
             .map(|score| score.to_string())

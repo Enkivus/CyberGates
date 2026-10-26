@@ -112,7 +112,7 @@ pub fn list() -> Vec<ModuleStatus> {
             id: "toolkit".to_string(),
             name: "Security Toolkit".to_string(),
             status: "partial".to_string(),
-            detail: "Local file hashing and bounded signature inspection plus user-triggered DNS/TLS host diagnostics are available. Reputation verdicts, scanning, and broader diagnostics are not implemented.".to_string(),
+            detail: "Local file hashing and bounded signature inspection, user-triggered DNS/TLS host diagnostics, and a bounded read-only CyberGates application log viewer are available. Reputation verdicts, malware scanning, and operating-system event monitoring are not implemented.".to_string(),
         },
         ModuleStatus {
             id: "devices".to_string(),
@@ -124,7 +124,7 @@ pub fn list() -> Vec<ModuleStatus> {
             id: "reports".to_string(),
             name: "Reports and History".to_string(),
             status: "partial".to_string(),
-            detail: "Audit history and sanitized JSON/HTML exports are implemented. Scan and incident reports come later.".to_string(),
+            detail: "Audit and incident history with sanitized JSON/HTML exports are implemented. Scan reports depend on the malware scanner, which is not implemented.".to_string(),
         },
         ModuleStatus {
             id: "settings".to_string(),

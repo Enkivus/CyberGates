@@ -99,7 +99,9 @@ changes, quarantine, process termination, network isolation) must:
   data and log directories are restricted to the current user; the main SQLite file
   and exported reports are also restricted. On Windows, this version relies on the
   permissions inherited from the per-user application-data directories. Do not rely
-  on these files for highly sensitive environments.
+  on these files for highly sensitive environments. The in-app log viewer reads only
+  recent CyberGates log files with output limits; logs can contain local paths or
+  error details and should be reviewed before sharing.
 
 ## Limitations to disclose to users
 
@@ -107,5 +109,6 @@ changes, quarantine, process termination, network isolation) must:
 - Backup metadata checks do not prove a restore works.
 - Malware scanning and broad vulnerability assessment are not implemented. The
   optional Homebrew advisory matcher covers only a narrow, explicitly disclosed case.
-- Windows and Linux have no native audit adapter yet.
+- Windows has no native audit adapter. Linux has partial read-only inventories but no
+  verified posture audit or security score.
 - Unsigned builds have no verified publisher identity.

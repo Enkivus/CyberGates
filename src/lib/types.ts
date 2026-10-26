@@ -281,6 +281,13 @@ export interface AuditLogEntry {
   outcome: string;
 }
 
+export interface ApplicationLogSnapshot {
+  available: boolean;
+  lines: string[];
+  fetchedAt: string;
+  warnings: string[];
+}
+
 export interface SettingEntry {
   key: string;
   value: string;

@@ -36,6 +36,8 @@ Tauri 2, Rust, React, and TypeScript.
 - User-triggered DNS resolution and TLS certificate validation for one host on port
   443. Host diagnostics disclose the name to the configured resolver and target host,
   send no HTTP request, and do not provide reputation verdicts.
+- A bounded, read-only viewer for recent CyberGates application logs. It does not show
+  operating-system security events; review local paths and error details before sharing.
 - Local audit history, findings with severity/date filters, configurable retention,
   activity log, and JSON/HTML reports.
 - Local incident cases created from open posture findings, with linked evidence,

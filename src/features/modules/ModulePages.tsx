@@ -4,6 +4,7 @@ import { ModulePage } from "../../components/ModulePage";
 import { PageHeader, Panel, PanelHeader } from "../../components/ui";
 import { FileHasher } from "../toolkit/FileHasher";
 import { HostDiagnostics } from "../toolkit/HostDiagnostics";
+import { ApplicationLogs } from "../toolkit/ApplicationLogs";
 import { Incidents } from "../incidents/Incidents";
 
 export function ThreatProtection() {
@@ -299,6 +300,7 @@ export function Toolkit() {
     <div className="space-y-5">
       <FileHasher />
       <HostDiagnostics />
+      <ApplicationLogs />
     </div>
   );
 }
