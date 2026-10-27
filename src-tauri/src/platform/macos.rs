@@ -984,6 +984,9 @@ fn parse_system_profiler(json: &str) -> AppResult<Vec<InstalledApp>> {
                     .get("obtained_from")
                     .and_then(|value| value.as_str())
                     .map(str::to_string),
+                advisory_name: None,
+                advisory_version: None,
+                advisory_ecosystem: None,
             })
         })
         .collect())
@@ -1007,6 +1010,9 @@ fn parse_brew(stdout: &str) -> Vec<InstalledApp> {
                 path: None,
                 signed_by: None,
                 obtained_from: Some("homebrew".to_string()),
+                advisory_name: None,
+                advisory_version: None,
+                advisory_ecosystem: None,
             })
         })
         .collect()

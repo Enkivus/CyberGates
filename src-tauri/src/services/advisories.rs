@@ -12,11 +12,15 @@ use crate::models::{
 
 const SOURCE_URL: &str =
     "https://codeload.github.com/Homebrew/advisory-database/tar.gz/refs/heads/main";
+const OSV_QUERYBATCH_URL: &str = "https://api.osv.dev/v1/querybatch";
 const SOURCE_NAME: &str = "Homebrew advisory database (OSV format)";
 const SCOPE: &str = "Homebrew formula advisories. Automatically generated records use the currently shipped version as an approximate fixed boundary, not the exact fixing version; CyberGates treats these as unverified and does not report them as matches. Only non-generated records with a same-upstream-version revision patch are eligible for a match. This early Homebrew feed is not a complete vulnerability database.";
 const MAX_DOWNLOAD_BYTES: u64 = 64 * 1024 * 1024;
 const MAX_UNPACKED_BYTES: u64 = 256 * 1024 * 1024;
 const MAX_RECORD_BYTES: u64 = 2 * 1024 * 1024;
+const MAX_OSV_RESPONSE_BYTES: u64 = 16 * 1024 * 1024;
+const MAX_OSV_QUERY_PACKAGES: usize = 5000;
+const MAX_OSV_PAGES: usize = 10;
 
 pub fn update(db: &Db) -> AppResult<AdvisoryUpdate> {
     let client = reqwest::blocking::Client::builder()
@@ -215,6 +219,259 @@ pub fn report(db: &Db, apps: &[InstalledApp]) -> AppResult<AdvisoryReport> {
     report.unverified_records = unverified_records;
     report.matches = matches;
     Ok(report)
+}
+
+/// Query the official OSV API for supported Debian packages. Package names,
+/// source versions, and the Debian release ecosystem are sent to OSV only when
+/// the user explicitly requests this check in the UI.
+pub fn check_debian_packages(apps: &[InstalledApp]) -> AppResult<AdvisoryReport> {
+    let mut skipped_packages = Vec::new();
+    let mut query_packages = std::collections::BTreeMap::<(String, String, String), ()>::new();
+
+    for app in apps
+        .iter()
+        .filter(|app| app.source == "Debian packages (dpkg)")
+    {
+        let (Some(ecosystem), Some(name), Some(version)) = (
+            app.advisory_ecosystem.as_deref(),
+            app.advisory_name.as_deref(),
+            app.advisory_version.as_deref(),
+        ) else {
+            skipped_packages.push(format!(
+                "{}: Debian release or source version unavailable",
+                app.name
+            ));
+            continue;
+        };
+        if !ecosystem.starts_with("Debian:")
+            || !valid_osv_package_name(name)
+            || !valid_osv_package_version(version)
+        {
+            skipped_packages.push(format!("{}: unsupported Debian package metadata", app.name));
+            continue;
+        }
+        query_packages
+            .entry((ecosystem.to_string(), name.to_string(), version.to_string()))
+            .or_insert(());
+    }
+
+    let mut report = AdvisoryReport {
+        available: false,
+        source: "OSV.dev query API (Debian packages)".to_string(),
+        fetched_at: None,
+        record_count: 0,
+        package_count: 0,
+        checked_packages: 0,
+        skipped_packages,
+        uncompared_packages: Vec::new(),
+        unverified_records: 0,
+        matches: Vec::new(),
+        scope: "Supported Debian releases only. This manual online check sends Debian source package names, source versions, and the release ecosystem to api.osv.dev. OSV.dev evaluates Debian version ranges; the package inventory and returned results are not stored by CyberGates. No result is not proof of safety.".to_string(),
+    };
+    if query_packages.is_empty() {
+        return Ok(report);
+    }
+    if query_packages.len() > MAX_OSV_QUERY_PACKAGES {
+        return Err(AppError::Validation(format!(
+            "the Debian advisory check is limited to {MAX_OSV_QUERY_PACKAGES} distinct package versions"
+        )));
+    }
+
+    let queries: Vec<OsvQueryPackage> = query_packages
+        .into_keys()
+        .map(|(ecosystem, name, version)| OsvQueryPackage {
+            ecosystem,
+            name,
+            version,
+        })
+        .collect();
+    let client = reqwest::blocking::Client::builder()
+        .timeout(Duration::from_secs(60))
+        .user_agent("CyberGates/0.1.0")
+        .build()
+        .map_err(|err| AppError::Internal(format!("could not create OSV client: {err}")))?;
+
+    let vulnerabilities = query_osv_batch(&client, &queries)?;
+    let mut matches = Vec::new();
+    let mut record_ids = HashSet::new();
+    for (query, records) in queries.iter().zip(vulnerabilities) {
+        for record in records {
+            if !valid_osv_id(&record.id) {
+                continue;
+            }
+            record_ids.insert(record.id.clone());
+            matches.push(AdvisoryMatch {
+                package: query.name.clone(),
+                installed_version: query.version.clone(),
+                id: record.id.clone(),
+                aliases: Vec::new(),
+                summary: "OSV.dev matched this Debian source package and version. Open the advisory for details.".to_string(),
+                severity: None,
+                introduced: None,
+                fixed: None,
+                modified: record.modified.clone(),
+                references: vec![format!("https://osv.dev/vulnerability/{}", record.id)],
+            });
+        }
+    }
+    matches.sort_by(|left, right| {
+        left.package
+            .cmp(&right.package)
+            .then(left.id.cmp(&right.id))
+            .then(left.installed_version.cmp(&right.installed_version))
+    });
+    matches.dedup_by(|left, right| {
+        left.package == right.package
+            && left.id == right.id
+            && left.installed_version == right.installed_version
+    });
+
+    report.available = true;
+    report.fetched_at = Some(now_rfc3339());
+    report.record_count = record_ids.len() as u32;
+    report.package_count = queries.len() as u32;
+    report.checked_packages = queries.len() as u32;
+    report.matches = matches;
+    Ok(report)
+}
+
+#[derive(Debug, Clone)]
+struct OsvQueryPackage {
+    ecosystem: String,
+    name: String,
+    version: String,
+}
+
+#[derive(serde::Serialize)]
+struct OsvQuery {
+    package: OsvPackage,
+    version: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    page_token: Option<String>,
+}
+
+#[derive(serde::Serialize)]
+struct OsvPackage {
+    ecosystem: String,
+    name: String,
+}
+
+#[derive(serde::Serialize)]
+struct OsvBatchRequest {
+    queries: Vec<OsvQuery>,
+}
+
+#[derive(serde::Deserialize)]
+struct OsvBatchResponse {
+    results: Vec<OsvQueryResult>,
+}
+
+#[derive(serde::Deserialize)]
+struct OsvQueryResult {
+    vulns: Option<Vec<OsvVulnerabilityRef>>,
+    next_page_token: Option<String>,
+}
+
+#[derive(serde::Deserialize)]
+struct OsvVulnerabilityRef {
+    id: String,
+    modified: Option<String>,
+}
+
+fn query_osv_batch(
+    client: &reqwest::blocking::Client,
+    packages: &[OsvQueryPackage],
+) -> AppResult<Vec<Vec<OsvVulnerabilityRef>>> {
+    let mut all_results: Vec<Vec<OsvVulnerabilityRef>> =
+        (0..packages.len()).map(|_| Vec::new()).collect();
+    let mut pending: Vec<(usize, Option<String>)> =
+        (0..packages.len()).map(|index| (index, None)).collect();
+    let mut pages = 0;
+    while !pending.is_empty() {
+        pages += 1;
+        if pages > MAX_OSV_PAGES {
+            return Err(AppError::Internal(
+                "OSV.dev returned too many result pages; the advisory check was not completed"
+                    .to_string(),
+            ));
+        }
+        let body = OsvBatchRequest {
+            queries: pending
+                .iter()
+                .map(|(index, page_token)| OsvQuery {
+                    package: OsvPackage {
+                        ecosystem: packages[*index].ecosystem.clone(),
+                        name: packages[*index].name.clone(),
+                    },
+                    version: packages[*index].version.clone(),
+                    page_token: page_token.clone(),
+                })
+                .collect(),
+        };
+        let response = client
+            .post(OSV_QUERYBATCH_URL)
+            .json(&body)
+            .send()
+            .map_err(|err| AppError::Internal(format!("OSV.dev query failed: {err}")))?;
+        if !response.status().is_success() {
+            return Err(AppError::Internal(format!(
+                "OSV.dev returned HTTP {}",
+                response.status()
+            )));
+        }
+        let mut bytes = Vec::new();
+        response
+            .take(MAX_OSV_RESPONSE_BYTES + 1)
+            .read_to_end(&mut bytes)
+            .map_err(|err| AppError::Internal(format!("could not read OSV.dev response: {err}")))?;
+        if bytes.len() as u64 > MAX_OSV_RESPONSE_BYTES {
+            return Err(AppError::Internal(
+                "OSV.dev response exceeded the 16 MiB safety limit".to_string(),
+            ));
+        }
+        let response: OsvBatchResponse = serde_json::from_slice(&bytes)
+            .map_err(|err| AppError::Internal(format!("invalid OSV.dev response: {err}")))?;
+        if response.results.len() != pending.len() {
+            return Err(AppError::Internal(
+                "OSV.dev returned a mismatched result count; the advisory check was not completed"
+                    .to_string(),
+            ));
+        }
+        let mut next_pending = Vec::new();
+        for ((index, _), result) in pending.into_iter().zip(response.results) {
+            all_results[index].extend(result.vulns.unwrap_or_default());
+            if let Some(token) = result.next_page_token {
+                if token.len() > 4096 || token.chars().any(char::is_control) {
+                    return Err(AppError::Internal(
+                        "OSV.dev returned an invalid pagination token".to_string(),
+                    ));
+                }
+                next_pending.push((index, Some(token)));
+            }
+        }
+        pending = next_pending;
+    }
+    Ok(all_results)
+}
+
+fn valid_osv_package_name(value: &str) -> bool {
+    !value.is_empty()
+        && value.len() <= 512
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || b".+_-".contains(&byte))
+}
+
+fn valid_osv_package_version(value: &str) -> bool {
+    !value.is_empty() && value.len() <= 512 && !value.chars().any(char::is_control)
+}
+
+fn valid_osv_id(value: &str) -> bool {
+    !value.is_empty()
+        && value.len() <= 128
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || b":_.-".contains(&byte))
 }
 
 fn parse_archive(bytes: &[u8]) -> AppResult<(Vec<AdvisoryRow>, u32, u32, u32)> {

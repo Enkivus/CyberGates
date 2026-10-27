@@ -69,6 +69,7 @@ pub fn run() {
             commands::get_startup_inventory,
             commands::get_loaded_services,
             commands::update_advisory_database,
+            commands::check_debian_advisories,
             commands::get_advisory_report,
             commands::get_module_statuses,
             commands::get_open_findings,

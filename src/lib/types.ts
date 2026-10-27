@@ -219,6 +219,9 @@ export interface InstalledApp {
   path: string | null;
   signedBy: string | null;
   obtainedFrom: string | null;
+  advisoryName: string | null;
+  advisoryVersion: string | null;
+  advisoryEcosystem: string | null;
 }
 
 export interface AdvisoryMatch {

@@ -62,6 +62,7 @@ export const api = {
   getInstalledApps: () => call<InstalledApp[]>("get_installed_apps"),
   getFirewallSnapshot: () => call<FirewallSnapshot | null>("get_firewall_snapshot"),
   updateAdvisoryDatabase: () => call<AdvisoryUpdate>("update_advisory_database"),
+  checkDebianAdvisories: () => call<AdvisoryReport>("check_debian_advisories"),
   getAdvisoryReport: () => call<AdvisoryReport>("get_advisory_report"),
   getModuleStatuses: () => call<ModuleStatus[]>("get_module_statuses"),
   getOpenFindings: (limit = 500) =>

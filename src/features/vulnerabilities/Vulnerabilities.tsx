@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { api } from "../../lib/api";
 import type { AdvisoryReport, AdvisoryUpdate, InstalledApp } from "../../lib/types";
+import { ConfirmDialog } from "../../components/ConfirmDialog";
 import {
   EmptyState,
   ErrorState,
@@ -49,6 +50,10 @@ export function Vulnerabilities() {
   const [updating, setUpdating] = useState(false);
   const [checking, setChecking] = useState(false);
   const [updateInfo, setUpdateInfo] = useState<AdvisoryUpdate | null>(null);
+  const [debianReport, setDebianReport] = useState<AdvisoryReport | null>(null);
+  const [debianLoading, setDebianLoading] = useState(false);
+  const [debianError, setDebianError] = useState<string | null>(null);
+  const [confirmDebianQuery, setConfirmDebianQuery] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -108,6 +113,19 @@ export function Vulnerabilities() {
     }
   }, []);
 
+  const checkDebianAdvisories = useCallback(async () => {
+    setConfirmDebianQuery(false);
+    setDebianLoading(true);
+    setDebianError(null);
+    try {
+      setDebianReport(await api.checkDebianAdvisories());
+    } catch (err) {
+      setDebianError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setDebianLoading(false);
+    }
+  }, []);
+
   const sources = useMemo(
     () => Array.from(new Set(apps.map((app) => app.source))).sort(),
     [apps],
@@ -130,6 +148,11 @@ export function Vulnerabilities() {
   const unsigned = apps.filter(
     (app) => app.source === "Application" && !app.signedBy && app.obtainedFrom !== "apple",
   ).length;
+  const debianPackageCount = new Set(
+    apps
+      .filter((app) => app.advisoryEcosystem?.startsWith("Debian:") && app.advisoryName && app.advisoryVersion)
+      .map((app) => `${app.advisoryEcosystem}\u0000${app.advisoryName}\u0000${app.advisoryVersion}`),
+  ).size;
 
   return (
     <div className="fade-in">
@@ -390,6 +413,107 @@ export function Vulnerabilities() {
           </>
         )}
       </Panel>
+
+      <Panel className="mb-5">
+        <PanelHeader
+          title="Debian package advisories"
+          description="Manual version-aware lookup through the OSV.dev API."
+          actions={
+            <button
+              type="button"
+              className="btn btn-primary btn-sm"
+              onClick={() => setConfirmDebianQuery(true)}
+              disabled={debianLoading || debianPackageCount === 0}
+            >
+              <ShieldAlert className={`h-3.5 w-3.5 ${debianLoading ? "animate-pulse" : ""}`} aria-hidden />
+              {debianLoading ? "Checking…" : "Check Debian packages"}
+            </button>
+          }
+        />
+        <p className="border-b border-line px-5 py-4 text-xs leading-relaxed text-muted">
+          This check is available only for recognized Debian numeric releases. After you
+          confirm, it sends Debian source package names, versions, and the release ID to
+          <span className="mono"> api.osv.dev</span>. It sends no file paths, hostnames, or
+          other inventory; the lookup results are not saved by CyberGates. OSV.dev evaluates
+          Debian version ranges. A clean result is not proof that the system is safe.
+        </p>
+        {debianError ? <ErrorState message={debianError} onRetry={() => setConfirmDebianQuery(true)} /> : null}
+        {debianLoading ? <LoadingState label="Querying Debian package advisories" /> : null}
+        {!debianLoading && debianReport ? (
+          <>
+            <div className="grid gap-3 border-b border-line px-5 py-4 sm:grid-cols-3">
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-faint">Source</p>
+                <p className="mt-1 text-sm font-semibold text-ink">{debianReport.source}</p>
+              </div>
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-faint">Source packages queried</p>
+                <p className="mt-1 text-lg font-semibold text-ink">{debianReport.checkedPackages}</p>
+              </div>
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-faint">Advisory matches</p>
+                <p className={`mt-1 text-lg font-semibold ${debianReport.matches.length ? "text-warn" : "text-ok"}`}>
+                  {debianReport.matches.length}
+                </p>
+              </div>
+            </div>
+            <p className="border-b border-line px-5 py-3 text-xs text-muted">{debianReport.scope}</p>
+            {debianReport.skippedPackages.length > 0 ? (
+              <p className="border-b border-line px-5 py-3 text-xs text-warn">
+                {debianReport.skippedPackages.length} package records were skipped because their Debian release or source-version metadata was unavailable.
+              </p>
+            ) : null}
+            {!debianReport.available ? (
+              <EmptyState
+                icon={<Database className="h-5 w-5" aria-hidden />}
+                title="Debian advisory check unavailable"
+                description="This system did not provide supported Debian release and source-package metadata. No vulnerability claim was made."
+              />
+            ) : debianReport.matches.length === 0 ? (
+              <EmptyState
+                icon={<CheckCircle2 className="h-5 w-5" aria-hidden />}
+                title="OSV.dev returned no matches"
+                description="This is not proof that installed software is free of vulnerabilities; OSV.dev coverage and package metadata may be incomplete."
+              />
+            ) : (
+              <div className="max-h-[420px] overflow-auto">
+                <table className="table">
+                  <thead className="sticky top-0 z-10 bg-surface">
+                    <tr><th>Debian source package</th><th>Source version</th><th>OSV advisory</th></tr>
+                  </thead>
+                  <tbody>
+                    {debianReport.matches.map((match) => (
+                      <tr key={`${match.package}-${match.installedVersion}-${match.id}`}>
+                        <td className="font-medium">{match.package}</td>
+                        <td className="mono text-xs text-muted">{match.installedVersion}</td>
+                        <td>
+                          <a
+                            className="mono text-xs text-accent underline"
+                            href={match.references[0]}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            {match.id}
+                          </a>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </>
+        ) : null}
+      </Panel>
+
+      <ConfirmDialog
+        open={confirmDebianQuery}
+        title="Send Debian package metadata to OSV.dev?"
+        description={`This check sends ${debianPackageCount} distinct Debian source package/version pairs and the Debian release identifier to api.osv.dev so its version-aware service can check advisories. CyberGates does not send package paths or save the returned results.`}
+        confirmLabel="Query OSV.dev"
+        onConfirm={() => void checkDebianAdvisories()}
+        onCancel={() => setConfirmDebianQuery(false)}
+      />
 
       <div className="mb-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <KpiCard

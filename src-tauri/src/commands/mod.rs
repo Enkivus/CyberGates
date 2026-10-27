@@ -203,7 +203,7 @@ pub async fn update_advisory_database(state: State<'_, AppState>) -> AppResult<A
         .is_err()
     {
         return Err(AppError::Validation(
-            "an advisory database update is already running".to_string(),
+            "another advisory operation is already running".to_string(),
         ));
     }
 
@@ -225,6 +225,49 @@ pub async fn update_advisory_database(state: State<'_, AppState>) -> AppResult<A
             }
             Err(err) => {
                 let _ = db.log_action("advisory_update", &err.to_string(), "failed");
+            }
+        }
+        result
+    })
+    .await
+    .map_err(|err| AppError::Task(err.to_string()))?
+}
+
+#[tauri::command]
+pub async fn check_debian_advisories(state: State<'_, AppState>) -> AppResult<AdvisoryReport> {
+    use std::sync::atomic::Ordering;
+
+    if state
+        .advisory_update_running
+        .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
+        .is_err()
+    {
+        return Err(AppError::Validation(
+            "another advisory operation is already running".to_string(),
+        ));
+    }
+
+    let guard = AdvisoryUpdateGuard(state.advisory_update_running.clone());
+    let db = state.db.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let _guard = guard;
+        let result = (|| {
+            let apps = platform::adapter().installed_apps()?;
+            services::advisories::check_debian_packages(&apps)
+        })();
+        match &result {
+            Ok(report) => {
+                let _ = db.log_action(
+                    "debian_advisory_check",
+                    &format!(
+                        "queried {} Debian source package versions; {} advisory records matched",
+                        report.checked_packages, report.record_count
+                    ),
+                    "success",
+                );
+            }
+            Err(err) => {
+                let _ = db.log_action("debian_advisory_check", &err.to_string(), "failed");
             }
         }
         result

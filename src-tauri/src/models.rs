@@ -335,6 +335,9 @@ pub struct InstalledApp {
     pub path: Option<String>,
     pub signed_by: Option<String>,
     pub obtained_from: Option<String>,
+    pub advisory_name: Option<String>,
+    pub advisory_version: Option<String>,
+    pub advisory_ecosystem: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -31,6 +31,7 @@ const MAX_COMMAND_OUTPUT: usize = 2 * 1024 * 1024;
 const MAX_FIREWALL_OUTPUT: usize = 64 * 1024;
 const MAX_STARTUP_ITEMS: usize = 1000;
 const MAX_EXAMINED_ENTRIES: usize = 5000;
+const MAX_OS_RELEASE_BYTES: usize = 64 * 1024;
 
 pub struct LinuxAdapter;
 
@@ -141,8 +142,7 @@ impl PlatformAudit for LinuxAdapter {
     }
 
     fn installed_apps(&self) -> AppResult<Vec<InstalledApp>> {
-        let dpkg_format =
-            "${binary:Package}\\t${Version}\\t${Architecture}\\t${db:Status-Status}\\n";
+        let dpkg_format = "${binary:Package}\\t${Version}\\t${Architecture}\\t${db:Status-Status}\\t${source:Package}\\t${source:Version}\\n";
         if let Some(output) = DPKG_QUERY_PATHS.iter().find_map(|path| {
             run_optional_with_limit(
                 path,
@@ -152,7 +152,13 @@ impl PlatformAudit for LinuxAdapter {
             )
         }) {
             if output.success {
-                return Ok(parse_dpkg_packages(&output.stdout));
+                let mut packages = parse_dpkg_packages(&output.stdout);
+                if let Some(ecosystem) = read_debian_osv_ecosystem() {
+                    for package in &mut packages {
+                        package.advisory_ecosystem = Some(ecosystem.clone());
+                    }
+                }
+                return Ok(packages);
             }
         }
 
@@ -547,11 +553,58 @@ fn valid_package_field(value: &str) -> bool {
         && !value.contains(['/', '\\'])
 }
 
+fn read_debian_osv_ecosystem() -> Option<String> {
+    let mut file = fs::File::open("/etc/os-release").ok()?;
+    let mut contents = String::new();
+    file.by_ref()
+        .take(MAX_OS_RELEASE_BYTES as u64 + 1)
+        .read_to_string(&mut contents)
+        .ok()?;
+    if contents.len() > MAX_OS_RELEASE_BYTES {
+        return None;
+    }
+    debian_osv_ecosystem(&contents)
+}
+
+fn debian_osv_ecosystem(text: &str) -> Option<String> {
+    let mut id = None;
+    let mut version_id = None;
+    for line in text.lines().take(512) {
+        let Some((key, raw_value)) = line.split_once('=') else {
+            continue;
+        };
+        let value = raw_value.trim();
+        let value = if value.starts_with('"') && value.ends_with('"') && value.len() >= 2 {
+            &value[1..value.len() - 1]
+        } else if value.starts_with('\'') && value.ends_with('\'') && value.len() >= 2 {
+            &value[1..value.len() - 1]
+        } else {
+            value
+        };
+        if value.is_empty() || value.chars().any(char::is_control) {
+            continue;
+        }
+        match key {
+            "ID" => id = Some(value),
+            "VERSION_ID" => version_id = Some(value),
+            _ => {}
+        }
+    }
+    if id? != "debian" {
+        return None;
+    }
+    let release = version_id?;
+    if release.len() > 2 || !release.bytes().all(|byte| byte.is_ascii_digit()) {
+        return None;
+    }
+    Some(format!("Debian:{release}"))
+}
+
 fn parse_dpkg_packages(text: &str) -> Vec<InstalledApp> {
     text.lines()
         .take(20_000)
         .filter_map(|line| {
-            let mut fields = line.splitn(4, '\t');
+            let mut fields = line.splitn(6, '\t');
             let name = fields.next()?;
             let version = fields.next()?;
             let _architecture = fields.next()?;
@@ -560,6 +613,14 @@ fn parse_dpkg_packages(text: &str) -> Vec<InstalledApp> {
             {
                 return None;
             }
+            let advisory_name = fields
+                .next()
+                .filter(|value| valid_package_field(value))
+                .unwrap_or_else(|| name.split(':').next().unwrap_or(name));
+            let advisory_version = fields
+                .next()
+                .filter(|value| valid_package_field(value))
+                .unwrap_or(version);
             Some(InstalledApp {
                 name: name.to_string(),
                 version: Some(version.to_string()),
@@ -567,6 +628,9 @@ fn parse_dpkg_packages(text: &str) -> Vec<InstalledApp> {
                 path: None,
                 signed_by: None,
                 obtained_from: Some("dpkg database".to_string()),
+                advisory_name: Some(advisory_name.to_string()),
+                advisory_version: Some(advisory_version.to_string()),
+                advisory_ecosystem: None,
             })
         })
         .collect()
@@ -590,6 +654,9 @@ fn parse_rpm_packages(text: &str) -> Vec<InstalledApp> {
                 path: None,
                 signed_by: None,
                 obtained_from: Some("RPM database".to_string()),
+                advisory_name: None,
+                advisory_version: None,
+                advisory_ecosystem: None,
             })
         })
         .collect()
@@ -615,6 +682,9 @@ fn parse_pacman_packages(text: &str) -> Vec<InstalledApp> {
                 path: None,
                 signed_by: None,
                 obtained_from: Some("pacman database".to_string()),
+                advisory_name: None,
+                advisory_version: None,
+                advisory_ecosystem: None,
             })
         })
         .collect()
@@ -828,12 +898,30 @@ mod tests {
     #[test]
     fn parses_only_installed_dpkg_packages_with_bounded_fields() {
         let packages = parse_dpkg_packages(
-            "openssl:amd64\t3.0.2-0ubuntu1\tamd64\tinstalled\nremoved\t1.0\tall\tconfig-files\nbad/name\t1.0\tall\tinstalled\nmalformed\t1.0\n",
+            "openssl:amd64\t3.0.2-0ubuntu1\tamd64\tinstalled\topenssl\t3.0.2-0ubuntu1\nremoved\t1.0\tall\tconfig-files\nbad/name\t1.0\tall\tinstalled\nmalformed\t1.0\n",
         );
         assert_eq!(packages.len(), 1);
         assert_eq!(packages[0].name, "openssl:amd64");
         assert_eq!(packages[0].version.as_deref(), Some("3.0.2-0ubuntu1"));
         assert_eq!(packages[0].source, "Debian packages (dpkg)");
+        assert_eq!(packages[0].advisory_name.as_deref(), Some("openssl"));
+        assert_eq!(
+            packages[0].advisory_version.as_deref(),
+            Some("3.0.2-0ubuntu1")
+        );
+        assert!(packages[0].advisory_ecosystem.is_none());
+    }
+
+    #[test]
+    fn maps_debian_release_only_for_exact_numeric_debian_identity() {
+        assert_eq!(
+            debian_osv_ecosystem("ID=debian\nVERSION_ID=13\n"),
+            Some("Debian:13".to_string())
+        );
+        assert_eq!(debian_osv_ecosystem("ID=debian\nVERSION_ID=12.5\n"), None);
+        assert_eq!(debian_osv_ecosystem("ID=ubuntu\nVERSION_ID=24.04\n"), None);
+        assert_eq!(debian_osv_ecosystem("ID=debian\nVERSION_ID=sid\n"), None);
+        assert_eq!(debian_osv_ecosystem("ID=debian\n"), None);
     }
 
     #[test]
