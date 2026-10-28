@@ -13,9 +13,11 @@ No bug bounty or response SLA is currently published.
 ## Current security posture
 
 - Local-first: no telemetry, cloud sync, or AI provider is active. Outbound requests
-  occur only for a user-triggered Homebrew feed update or host DNS/TLS diagnostic. Host
-  diagnostics disclose the submitted name to the configured resolver and target host;
-  the app sends no inventory or device identifiers.
+  occur only for a user-triggered Homebrew feed update, explicitly confirmed Debian
+  OSV.dev package lookup, or host DNS/TLS diagnostic. The Debian lookup sends Debian
+  source package names, versions, and release ID to OSV.dev; its results are not saved
+  by CyberGates. Host diagnostics disclose the submitted name to the configured resolver
+  and target host. No device identifier is sent by these features.
 - The webview has no shell/filesystem/HTTP plugins; only typed commands are exposed.
 - The production webview Content Security Policy disallows inline styles. The UI
   uses external stylesheets and SVG presentation attributes; the development policy
@@ -110,8 +112,9 @@ changes, quarantine, process termination, network isolation) must:
 
 - Passing posture checks does not mean the device is malware-free.
 - Backup metadata checks do not prove a restore works.
-- Malware scanning and broad vulnerability assessment are not implemented. The
-  optional Homebrew advisory matcher covers only a narrow, explicitly disclosed case.
+- Malware scanning and broad vulnerability assessment are not implemented. Advisory
+  checks cover only the limited Homebrew matcher and manual OSV.dev lookup for numeric
+  Debian releases; neither covers all installed software or proves a clean system.
 - Windows has no verified posture audit or security score; its partial startup view
   lists Run/RunOnce registry value names only. Linux has partial read-only inventories
   but no verified posture audit or security score.

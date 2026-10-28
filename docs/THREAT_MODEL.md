@@ -27,11 +27,14 @@ versus planned. It must be updated whenever a new privileged capability is added
    value names only; configured command data is not fetched or executed.
 3. **Backend ↔ local database/files.** Paths are app-controlled; reports are written
    only to the app data directory.
-4. **Backend ↔ external network.** Outbound requests are user-triggered: the advisory
-   feed update downloads public data; host diagnostics query the configured DNS resolver
-   and open a TLS handshake to the submitted host on port 443. The host resolver and
-   remote endpoint can observe the requested name. No HTTP request or inventory upload
-   occurs. AI and cloud services would cross this boundary separately.
+4. **Backend ↔ external network.** Outbound requests are user-triggered: the Homebrew
+   feed update downloads public data; a separately confirmed Debian advisory lookup
+   sends source package names, versions, and release ID to OSV.dev; host diagnostics
+   query the configured DNS resolver and open a TLS handshake to the submitted host on
+   port 443. The Debian package set and queried release are disclosed to OSV.dev; query
+   results are not persisted by CyberGates. Host diagnostics expose the requested name
+   to the resolver and endpoint. AI and cloud services would cross this boundary
+   separately.
 5. **Application ↔ packaged artifacts.** Installers must be signed and verified;
    current builds are unsigned previews.
 
@@ -47,6 +50,7 @@ versus planned. It must be updated whenever a new privileged capability is added
 | Database corruption / partial audit | Misleading history | WAL, migrations, transactions, interrupted-audit recovery | Implemented |
 | Sensitive data leakage via reports/logs | Privacy harm | Unix data/log/report directories are mode 0700; SQLite and report files are mode 0600; reports warn; the local log viewer is read-only, bounded, and rejects symlinks | Partial (not encrypted at rest; logs may contain paths/error details; Windows relies on inherited per-user ACLs) |
 | Malicious or malformed advisory feed | Memory exhaustion, SQL injection, misleading findings | HTTPS-only fixed URL; 64 MiB download cap; 256 MiB unpacked cap; 2 MiB/record cap; no extraction to disk; parameterized SQL; conservative applicability rules | Implemented |
+| OSV query service returns malformed or excessive data | Misleading matches or memory exhaustion | Explicit per-action consent; fixed HTTPS endpoint; bounded request, response, package count, timeout, and pagination; schema/result-count checks; advisory IDs validated; no persistence | Implemented |
 | Supply-chain compromise | Full compromise | Lockfiles and CI; dependency advisory audit is release-required but could not be completed in this environment (npm registry unavailable; `cargo-audit` not installed) | Partial |
 | Unsigned updates / installers | Impostor binaries | No updater; builds explicitly labeled unsigned | Planned (signing) |
 | Privilege escalation | System compromise | App runs as the user; no root helper; no privileged writes | Implemented by omission |

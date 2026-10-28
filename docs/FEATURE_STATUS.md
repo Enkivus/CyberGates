@@ -1,6 +1,6 @@
 # Feature Status
 
-Last updated: 2026-10-26 · v0.1.0
+Last updated: 2026-10-28 · v0.1.0
 
 Status is based on code presence **and verification**, not screen existence.
 ✅ implemented · 🟡 partial · ⬜ not started · ⛔ unavailable by design
@@ -36,7 +36,9 @@ Status is based on code presence **and verification**, not screen existence.
 - 🟡 Linux package name/version inventory through [dpkg-query](https://manpages.debian.org/testing/dpkg/dpkg-query.1.en.html),
   [RPM query formats](https://rpm.org/docs/latest/man/rpm-queryformat.7), or
   [pacman -Q](https://man.archlinux.org/man/core/pacman/pacman.8.en) where available;
-  package integrity and vulnerability matching are not implemented
+  package integrity is not checked. A manual, user-confirmed OSV.dev query supports
+  numeric Debian releases using source package names and versions; it does not cover
+  Ubuntu, Debian sid, RPM, pacman, or application bundles
 - 🟡 Optional Homebrew advisory matching: downloads Homebrew's OSV-format advisory
   database (~14 MB), indexes it in SQLite, records fetch time/counts, and only matches
   non-generated, same-version revision patches. Automatically generated boundaries are
@@ -161,9 +163,9 @@ Status is based on code presence **and verification**, not screen existence.
 
 ## Next implementation priorities
 
-1. Expand advisory coverage beyond Homebrew revision patches with a feed that provides
-   reliable affected-version ranges; never guess applicability from generation-time
-   boundaries.
+1. Extend package advisory coverage to verified distribution APIs for other supported
+   Linux distributions and package managers; retain explicit consent and avoid guessed
+   version comparisons.
 2. Malware engine integration behind a trait + quarantine with safety controls.
 3. Security event monitoring and a searchable timeline.
 4. Verified Linux posture adapter and Windows native adapter, tested on each platform.

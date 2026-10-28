@@ -31,7 +31,7 @@ CyberGates is a Tauri 2 desktop application:
 ┌──────────────────────────────────▼──────────────────────────────────────────┐
 │ macOS native tools: socketfilterfw, fdesetup, csrutil, spctl, softwareupdate │
 │ sysadminctl, launchctl, lsof, ifconfig, scutil, tmutil, defaults             │
-│ optional HTTPS download: Homebrew OSV advisory database (user-triggered)      │
+│ optional HTTPS: Homebrew OSV feed + confirmed Debian OSV query                 │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -43,7 +43,7 @@ CyberGates is a Tauri 2 desktop application:
 | `services::audit` | Runs an audit, persists it, resolves absent findings, builds dashboard. |
 | `services::system` | Host inventory and process sampling via `sysinfo`. |
 | `services::network` | Read-only connection and network configuration inventory via platform adapter. |
-| `services::advisories` | Downloads/indexes Homebrew's OSV feed; conservative local matching. |
+| `services::advisories` | Downloads/indexes Homebrew's OSV feed for conservative local matching; queries OSV.dev for explicitly confirmed Debian package versions. |
 | `services::reports` | Sanitized JSON/HTML audit and incident report generation into the app data directory. |
 | `services::logs` | Bounded read-only access to recent CyberGates-owned log files; rejects symlinks and does not expose OS event logs. |
 | `services::modules` | Honest per-module capability status shown in the UI. |
@@ -91,6 +91,12 @@ score, and prevents fabricated "protection" claims.
    an approximation rather than the exact fixing version. CyberGates marks generated
    records unverified. Only non-generated records with same-upstream-version revision
    patches and `fix=patch` are eligible as candidate matches.
+4. On recognized Debian numeric releases, the user can separately confirm an OSV.dev
+   query. The backend sends distinct Debian source package names, source versions, and
+   release ecosystem identifiers in bounded query batches. OSV.dev applies its Debian
+   version semantics; response IDs link to the upstream advisory. CyberGates does not
+   persist this request, package inventory, or response. Ubuntu, sid, RPM, pacman, and
+   application bundles are not included.
 
 ## Database schema (v4)
 

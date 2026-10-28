@@ -30,7 +30,11 @@ Tauri 2, Rust, React, and TypeScript.
   patch. This does not cover all applications or package managers.
 - Linux installed-package name and version inventory through dpkg, RPM, or pacman when
   one of those package databases is available. Linux packages are not matched against
-  vulnerability advisories yet.
+  vulnerability advisories except for the limited Debian check below.
+- Manual, user-confirmed OSV.dev advisory lookup for recognized Debian numeric releases.
+  It sends Debian source package names, versions, and release ID to OSV.dev and uses
+  OSV's version-aware result. RPM, pacman, other distributions, and application bundles
+  are not covered; a clean result is not proof of safety.
 - Read-only macOS Application Firewall settings and per-application exceptions, plus
   partial Linux UFW/firewalld/nftables observations. Neither is a complete firewall
   policy audit, and CyberGates does not change firewall settings.
@@ -124,10 +128,11 @@ current user. Reports may include hostnames, paths, processes, and network detai
 review them before sharing.
 
 The app has no active telemetry, cloud sync, or AI service. Network requests happen
-only when you update the optional Homebrew advisory database or submit a host in DNS/TLS
-diagnostics. The advisory update downloads public data without uploading inventory;
-host diagnostics disclose the entered host to your configured DNS resolver and open a
-TLS connection to that host on port 443. See
+only when you update the optional Homebrew advisory database, confirm a Debian OSV.dev
+package lookup, or submit a host in DNS/TLS diagnostics. The Homebrew update downloads
+public data without uploading inventory. The Debian lookup sends source package names,
+versions, and release ID to OSV.dev. Host diagnostics disclose the entered host to your
+configured DNS resolver and open a TLS connection to that host on port 443. See
 [`docs/THREAT_MODEL.md`](docs/THREAT_MODEL.md) for trust boundaries and limitations.
 
 ## Contributing

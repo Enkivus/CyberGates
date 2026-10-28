@@ -31,7 +31,7 @@ Legend: ✅ implemented and tested · 🟡 partial · ⛔ explicitly unavailable
 | Real-time protection | ⬜ | ⬜ | ⬜ |
 | Quarantine / restore | ⬜ | ⬜ | ⬜ |
 | Installed software inventory | ✅ apps + Homebrew | ⛔ | 🟡 dpkg / RPM / pacman package metadata |
-| Vulnerability advisory matching | 🟡 Homebrew revision patches | ⛔ | ⛔ |
+| Vulnerability advisory matching | 🟡 Homebrew revision patches | ⛔ | 🟡 Debian numeric releases only; manual OSV.dev lookup |
 | Advisory database update (manual) | ✅ ~14 MB download | ⛔ | ⛔ |
 | Process inventory | ✅ | ⬜ | ⬜ |
 | Loaded service inventory | 🟡 current-user launchd jobs | ⬜ | 🟡 current-user systemd units |
