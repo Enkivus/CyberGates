@@ -19,6 +19,7 @@ const MAX_DOWNLOAD_BYTES: u64 = 64 * 1024 * 1024;
 const MAX_UNPACKED_BYTES: u64 = 256 * 1024 * 1024;
 const MAX_RECORD_BYTES: u64 = 2 * 1024 * 1024;
 const MAX_OSV_RESPONSE_BYTES: u64 = 16 * 1024 * 1024;
+const MAX_OSV_REQUEST_BYTES: usize = 4 * 1024 * 1024;
 const MAX_OSV_QUERY_PACKAGES: usize = 5000;
 const MAX_OSV_PAGES: usize = 10;
 
@@ -408,9 +409,17 @@ fn query_osv_batch(
                 })
                 .collect(),
         };
+        let request_bytes = serde_json::to_vec(&body)
+            .map_err(|err| AppError::Internal(format!("could not encode OSV request: {err}")))?;
+        if request_bytes.len() > MAX_OSV_REQUEST_BYTES {
+            return Err(AppError::Validation(
+                "Debian advisory request exceeded the 4 MiB safety limit".to_string(),
+            ));
+        }
         let response = client
             .post(OSV_QUERYBATCH_URL)
-            .json(&body)
+            .header(reqwest::header::CONTENT_TYPE, "application/json")
+            .body(request_bytes)
             .send()
             .map_err(|err| AppError::Internal(format!("OSV.dev query failed: {err}")))?;
         if !response.status().is_success() {
